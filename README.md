@@ -137,14 +137,14 @@ GPU Colab sẽ tự động:
 ### ⚡ Kịch bản 2: Bật "Vũ Khí Chống Giật Lag" (Userscript Solo Focus Mode)
 Dành cho người gán nhãn trực tiếp trên trình duyệt máy tính:
 1. Cài đặt tiện ích **Tampermonkey** trên trình duyệt Chrome/Edge/Firefox/Brave.
-2. Mở file [`client/cvat-booster.user.js`](file:///d:/QuanProject/locate-anything/client/cvat-booster.user.js) $\rightarrow$ Cài đặt script vào Tampermonkey.
+2. Mở file [`client/cvat-booster.user.js`](locate-anything/client/cvat-booster.user.js) $\rightarrow$ Cài đặt script vào Tampermonkey.
 3. Mở CVAT trên trình duyệt: Một Widget kính mờ hiển thị FPS và bộ đếm đối tượng sẽ xuất hiện ở góc dưới bên trái.
 4. Khi Canvas bị lag do có quá nhiều nhãn: Nhấn phím tắt **`Shift + F`** để kích hoạt **Solo Focus Mode** $\rightarrow$ Ẩn 90% nhãn rác, đưa tốc độ vẽ trở lại **60 FPS siêu mượt**!
 
 ---
 
 ### 📦 Kịch bản 3: Quản lý và đẩy cấu hình nhãn lên CVAT bằng CLI
-1. Mở file [`configs/labels_config.yaml`](file:///d:/QuanProject/locate-anything/configs/labels_config.yaml) và chỉnh sửa nhãn tùy ý.
+1. Mở file [`configs/labels_config.yaml`](locate-anything/configs/labels_config.yaml) và chỉnh sửa nhãn tùy ý.
 2. Kiểm tra tính hợp lệ của file cấu hình nhãn:
    ```bash
    python tools/cvat_labels_cli.py validate configs/labels_config.yaml
