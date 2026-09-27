@@ -134,7 +134,7 @@ class CVATSyncWorker:
         print(f"🏷️ Danh sách nhãn trong Task: {label_names}")
         print(f"🖼️ Tổng số ảnh cần gán nhãn: {size}")
 
-        # Tự động đồng bộ và tôn trọng loại nhãn (type: mask vs box) được cấu hình trên Task CVAT
+        # Tự động đồng bộ và tôn trọng 100% loại nhãn (type: mask vs polygon vs box) được cấu hình trên Task CVAT
         from locate_cvat.label_registry import LabelItem, LabelType
 
         target_labels = []
@@ -142,10 +142,18 @@ class CVATSyncWorker:
             l_name = l.get("name")
             l_type_raw = str(l.get("type", "any")).strip().lower()
 
-            if l_type_raw in ["mask", "polygon", "segmentation"]:
+            if l_type_raw in ["mask", "segmentation"]:
+                target_type = LabelType.MASK
+            elif l_type_raw in ["polygon", "poly"]:
                 target_type = LabelType.POLYGON
             elif l_type_raw in ["rectangle", "box"]:
                 target_type = LabelType.BOX
+            elif l_type_raw in ["line", "polyline"]:
+                target_type = LabelType.LINE
+            elif l_type_raw in ["skeleton", "pose"]:
+                target_type = LabelType.SKELETON
+            elif l_type_raw in ["3d", "cuboid"]:
+                target_type = LabelType.CUBOID_3D
             else:
                 # Nếu trên CVAT để 'any' hoặc không xác định: tra cứu trong file cấu hình registry
                 reg_item = self.registry.get(l_name)
@@ -156,10 +164,15 @@ class CVATSyncWorker:
         if not target_labels and self.registry.labels:
             target_labels = [self.registry.labels[0]]
 
-        print(f"🎯 Mô hình AI sẽ gán nhãn cho {len(target_labels)} đối tượng:")
+        print(f"🎯 Mô hình AI sẽ gán nhãn cho {len(target_labels)} đối tượng chuẩn xác theo Task:")
         for t in target_labels:
-            type_desc = "Polygon Mask ôm viền khít" if t.type in (LabelType.POLYGON, LabelType.MASK) else "2D Bounding Box"
-            print(f"   • {t.name:<12} -> Dạng: {t.type.value.upper()} ({type_desc})")
+            if t.type == LabelType.MASK:
+                type_desc = "Native Bitmap MASK (Brush RLE chuẩn CVAT)"
+            elif t.type == LabelType.POLYGON:
+                type_desc = "Vector Polygon (Đa giác viền kéo thả)"
+            else:
+                type_desc = "2D Bounding Box (rectangle)"
+            print(f"   • {t.name:<12} -> Chuẩn type: {t.type.value.upper():<8} ({type_desc})")
 
         all_shapes = []
         start_time = time.time()
@@ -182,10 +195,11 @@ class CVATSyncWorker:
                 )
                 for res in results:
                     detected_label = res.get("label", label_item.name)
+                    shape_type = res.get("type", label_item.type.to_cvat_type())
                     shape_record = {
                         "frame": frame_idx,
                         "label_id": self._resolve_label_id(detected_label),
-                        "type": res.get("type", "rectangle"),
+                        "type": shape_type,
                         "points": res.get("points", []),
                         "occluded": False,
                         "z_order": 0,

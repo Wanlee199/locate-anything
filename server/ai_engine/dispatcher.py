@@ -59,9 +59,34 @@ class ModelDispatcher:
 
         h, w = image_shape
 
-        # 1. Định tuyến Polygon & Mask
-        if label_type in (LabelType.POLYGON, LabelType.MASK):
-            # Nếu có interactive prompt (click hoặc bbox) -> Dùng SAM 2.1
+        # 1. Định tuyến Mask (Native CVAT Bitmap RLE)
+        if label_type == LabelType.MASK:
+            if points or bbox:
+                polygon_pts = self.sam2_engine.segment_from_prompt(
+                    image_shape=image_shape,
+                    points=points,
+                    bbox=bbox,
+                )
+                from locate_cvat.rle_utils import poly_to_cvat_rle
+                rle_pts = poly_to_cvat_rle(polygon_pts, image_shape=image_shape, bbox=bbox)
+                return [
+                    {
+                        "type": "mask",
+                        "label": label_name,
+                        "points": rle_pts,
+                        "confidence": 0.95,
+                    }
+                ]
+            else:
+                return self.detector_engine.detect(
+                    image_shape=image_shape,
+                    image=image,
+                    target_labels=[label_name],
+                    desired_type="mask",
+                )
+
+        # 2. Định tuyến Polygon (Đa giác vector đỉnh)
+        elif label_type == LabelType.POLYGON:
             if points or bbox:
                 polygon_pts = self.sam2_engine.segment_from_prompt(
                     image_shape=image_shape,
@@ -77,7 +102,6 @@ class ModelDispatcher:
                     }
                 ]
             else:
-                # Không có prompt tương tác (batch tự động phát hiện trên toàn ảnh) -> YOLO-Seg
                 return self.detector_engine.detect(
                     image_shape=image_shape,
                     image=image,
@@ -85,7 +109,7 @@ class ModelDispatcher:
                     desired_type="polygon",
                 )
 
-        # 2. Định tuyến Bounding Box 2D -> YOLO / Detector
+        # 3. Định tuyến Bounding Box 2D -> YOLO / Detector
         elif label_type == LabelType.BOX:
             if bbox:
                 # Nếu đã có bbox prompt

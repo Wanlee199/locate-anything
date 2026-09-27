@@ -89,17 +89,41 @@ class DetectorEngine:
                         if match:
                             x1, y1, x2, y2 = box.xyxy[0].tolist()
 
-                            # Kiểm tra nếu cần xuất dạng polygon / mask
-                            is_mask_mode = desired_type in ["polygon", "mask"]
-                            if is_mask_mode and masks is not None and len(masks.xy) > idx and len(masks.xy[idx]) >= 3:
-                                poly_pts = masks.xy[idx]
-                                flat_pts = [round(float(c), 1) for pt in poly_pts for c in pt]
+                            # Kiểm tra nếu cần xuất dạng mask (RLE) hay polygon (Vector) hay box
+                            if desired_type == "mask":
+                                from locate_cvat.rle_utils import poly_to_cvat_rle
+                                if masks is not None and len(masks.xy) > idx and len(masks.xy[idx]) >= 3:
+                                    poly_pts = masks.xy[idx]
+                                    flat_pts = [round(float(c), 1) for pt in poly_pts for c in pt]
+                                    rle_pts = poly_to_cvat_rle(flat_pts, image_shape=(h, w), bbox=[x1, y1, x2, y2])
+                                else:
+                                    bw = max(1, int(round(x2 - x1 + 1)))
+                                    bh = max(1, int(round(y2 - y1 + 1)))
+                                    rle_pts = [0.0, float(bw * bh), float(round(x1, 1)), float(round(y1, 1)), float(round(x2, 1)), float(round(y2, 1))]
                                 results.append({
                                     "label": matched_label,
                                     "confidence": round(conf, 3),
-                                    "points": flat_pts,
-                                    "type": "polygon",
+                                    "points": rle_pts,
+                                    "type": "mask",
                                 })
+                            elif desired_type == "polygon":
+                                if masks is not None and len(masks.xy) > idx and len(masks.xy[idx]) >= 3:
+                                    poly_pts = masks.xy[idx]
+                                    flat_pts = [round(float(c), 1) for pt in poly_pts for c in pt]
+                                    results.append({
+                                        "label": matched_label,
+                                        "confidence": round(conf, 3),
+                                        "points": flat_pts,
+                                        "type": "polygon",
+                                    })
+                                else:
+                                    poly_points = [round(x1, 1), round(y1, 1), round(x2, 1), round(y1, 1), round(x2, 1), round(y2, 1), round(x1, 1), round(y2, 1)]
+                                    results.append({
+                                        "label": matched_label,
+                                        "confidence": round(conf, 3),
+                                        "points": poly_points,
+                                        "type": "polygon",
+                                    })
                             else:
                                 results.append({
                                     "label": matched_label,
@@ -121,8 +145,17 @@ class DetectorEngine:
                 x2 = round(min(w, x1 + w * 0.2), 1)
                 y2 = round(min(h, y1 + h * 0.2), 1)
 
-                if desired_type in ["polygon", "mask"]:
-                    # Mô phỏng polygon 4 góc khép kín
+                if desired_type == "mask":
+                    bw = max(1, int(round(x2 - x1 + 1)))
+                    bh = max(1, int(round(y2 - y1 + 1)))
+                    rle_points = [0.0, float(bw * bh), float(x1), float(y1), float(x2), float(y2)]
+                    results.append({
+                        "label": lbl,
+                        "confidence": 0.92,
+                        "points": rle_points,
+                        "type": "mask",
+                    })
+                elif desired_type == "polygon":
                     poly_points = [x1, y1, x2, y1, x2, y2, x1, y2]
                     results.append({
                         "label": lbl,

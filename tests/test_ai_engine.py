@@ -47,6 +47,18 @@ class TestAIEngine(unittest.TestCase):
         self.assertEqual(res[0]["label"], "road_damage")
         self.assertTrue(len(res[0]["points"]) >= 6)
 
+    def test_dispatch_mask_native(self):
+        """Kiểm tra định tuyến nhãn Mask xuất định dạng Native CVAT RLE."""
+        res = self.dispatcher.dispatch(
+            image_shape=(1080, 1920),
+            label_name="drivable_road",  # Label có type: "mask" trong YAML
+        )
+        self.assertTrue(len(res) > 0)
+        self.assertEqual(res[0]["type"], "mask")
+        self.assertEqual(res[0]["label"], "drivable_road")
+        # RLE points phải có ít nhất [rle_0, rle_1, xtl, ytl, xbr, ybr] >= 6 phần tử
+        self.assertTrue(len(res[0]["points"]) >= 6)
+
     def test_dispatch_skeleton(self):
         """Kiểm tra định tuyến nhãn Skeleton."""
         res = self.dispatcher.dispatch(
