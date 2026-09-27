@@ -22,6 +22,8 @@ from PIL import Image
 
 # Thêm thư mục gốc vào PYTHONPATH
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from locate_cvat.label_registry import LabelRegistry
 from server.ai_engine.dispatcher import ModelDispatcher
@@ -83,6 +85,27 @@ class CVATSyncWorker:
         with urllib.request.urlopen(req) as resp:
             return json.loads(resp.read().decode("utf-8"))
 
+    def get_task_labels(self) -> list:
+        """Lấy danh sách các nhãn thực sự được định nghĩa trong Task."""
+        url = f"{self.host}/api/labels?task_id={self.task_id}"
+        req = urllib.request.Request(url, headers=self._headers())
+        try:
+            with urllib.request.urlopen(req) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                return data.get("results", [])
+        except Exception as e:
+            print(f"[WARN] Không lấy được danh sách labels: {e}")
+            return []
+
+    def _resolve_label_id(self, label_name: str) -> int:
+        """Tìm ID của nhãn trong Task CVAT."""
+        for lbl in self.task_labels:
+            if lbl.get("name", "").lower() == label_name.lower():
+                return lbl.get("id", 0)
+        if self.task_labels:
+            return self.task_labels[0].get("id", 0)
+        return 1
+
     def run(self):
         print("=" * 65)
         print(f"🚀 BẮT ĐẦU ĐỒNG BỘ TỰ ĐỘNG COLAB GPU <---> CVAT TASK #{self.task_id}")
@@ -91,7 +114,10 @@ class CVATSyncWorker:
         task_info = self.get_task_info()
         task_name = task_info.get("name", f"Task {self.task_id}")
         size = task_info.get("size", 0)
+        self.task_labels = self.get_task_labels()
+        label_names = [l.get("name") for l in self.task_labels]
         print(f"📋 Tên Task: {task_name}")
+        print(f"🏷️ Danh sách nhãn trong Task: {label_names}")
         print(f"🖼️ Tổng số ảnh cần gán nhãn: {size}")
 
         all_shapes = []
@@ -111,10 +137,11 @@ class CVATSyncWorker:
                     image_shape=(h, w),
                     label_name=label_item.name,
                 )
+                label_id = self._resolve_label_id(label_item.name)
                 for res in results:
                     shape_record = {
                         "frame": frame_idx,
-                        "label_id": self._resolve_label_id(label_item.name, task_info),
+                        "label_id": label_id,
                         "type": res.get("type", "rectangle"),
                         "points": res.get("points", []),
                         "occluded": False,
@@ -134,14 +161,6 @@ class CVATSyncWorker:
         print(f"🎉 THÀNH CÔNG! Đã gán nhãn xong Task #{self.task_id} trong {elapsed:.1f} giây!")
         print(f"👉 Bây giờ bạn chỉ cần mở CVAT trên trình duyệt: toàn bộ đối tượng đã được vẽ sẵn!")
         print("=" * 65)
-
-    def _resolve_label_id(self, label_name: str, task_info: dict) -> int:
-        """Tìm ID của nhãn trong Task CVAT."""
-        labels = task_info.get("labels", [])
-        for lbl in labels:
-            if lbl.get("name") == label_name:
-                return lbl.get("id", 0)
-        return 0
 
 
 def main():
