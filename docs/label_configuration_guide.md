@@ -98,6 +98,20 @@ Hệ thống hỗ trợ đầy đủ 6 loại hình học chuẩn quốc tế:
       - [1, 3]  # Cổ sang tay phải
 ```
 
+### F. Nhãn Bitmap Mask (`mask`)
+```yaml
+- name: "drivable_road"
+  type: "mask"
+  color: "#007aff"
+  hotkey: "6"
+  description: "Bề mặt đường xe có thể lưu thông"
+  model_backend: "sam2"
+```
+> 💡 **Cơ chế Mask vs. Polygon trong CVAT**:
+> - Khi cấu hình `type: "mask"`, CVAT coi đây là dạng **Bitmap / Raster Mask** (tương tác bằng cọ vẽ Brush và tẩy Eraser trên UI).
+> - Khi AI tự động gán nhãn, hệ thống sẽ tự động mã hóa ma trận nhị phân pixel thành chuẩn **Native CVAT RLE** (`points = [rle_0, rle_1, ..., xtl, ytl, xbr, ybr]`), đảm bảo hiển thị đúng 100% dạng Mask trên CVAT.
+> - Nếu bạn muốn gán nhãn viền đa giác có các đỉnh để click kéo thả khi review, hãy chọn `type: "polygon"`.
+
 ---
 
 ## 3. Các Lệnh CLI Hữu Ích

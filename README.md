@@ -128,7 +128,10 @@ CVAT_TOKEN = "xxxxxxxx.yyyyyyyyyyyyyyyyyyyy..."           # Token lấy ở Bư�
 
 GPU Colab sẽ tự động:
 - Kéo từng frame ảnh từ CVAT máy bạn về.
-- Chạy YOLOv11 nhận diện chính xác từng xe bus, ô tô con, xe tải, xe máy.
+- Nhận diện chuẩn xác theo **từng loại nhãn của Task** trên CVAT:
+  - Nếu Task chọn `mask`: Tự động nén bitmap sinh **Native Mask (Brush RLE)** chuẩn CVAT 100%.
+  - Nếu Task chọn `polygon`: Sinh **Đa giác vector** có điểm neo kéo thả.
+  - Nếu Task chọn `box`: Sinh **2D Bounding Box** bám sát viền xe.
 - Đẩy toàn bộ annotations hoàn chỉnh ngược lại lên CVAT.
 - Khi màn hình hiện `🎉 THÀNH CÔNG!`, bạn chỉ việc F5 trang CVAT trên máy tính: toàn bộ ảnh đã được vẽ sẵn nhãn bám khít từng đối tượng!
 
@@ -137,14 +140,14 @@ GPU Colab sẽ tự động:
 ### ⚡ Kịch bản 2: Bật "Vũ Khí Chống Giật Lag" (Userscript Solo Focus Mode)
 Dành cho người gán nhãn trực tiếp trên trình duyệt máy tính:
 1. Cài đặt tiện ích **Tampermonkey** trên trình duyệt Chrome/Edge/Firefox/Brave.
-2. Mở file [`client/cvat-booster.user.js`](locate-anything/client/cvat-booster.user.js) $\rightarrow$ Cài đặt script vào Tampermonkey.
+2. Mở file [`client/cvat-booster.user.js`](client/cvat-booster.user.js) $\rightarrow$ Cài đặt script vào Tampermonkey.
 3. Mở CVAT trên trình duyệt: Một Widget kính mờ hiển thị FPS và bộ đếm đối tượng sẽ xuất hiện ở góc dưới bên trái.
 4. Khi Canvas bị lag do có quá nhiều nhãn: Nhấn phím tắt **`Shift + F`** để kích hoạt **Solo Focus Mode** $\rightarrow$ Ẩn 90% nhãn rác, đưa tốc độ vẽ trở lại **60 FPS siêu mượt**!
 
 ---
 
 ### 📦 Kịch bản 3: Quản lý và đẩy cấu hình nhãn lên CVAT bằng CLI
-1. Mở file [`configs/labels_config.yaml`](locate-anything/configs/labels_config.yaml) và chỉnh sửa nhãn tùy ý.
+1. Mở file [`configs/labels_config.yaml`](configs/labels_config.yaml) và chỉnh sửa nhãn tùy ý.
 2. Kiểm tra tính hợp lệ của file cấu hình nhãn:
    ```bash
    python tools/cvat_labels_cli.py validate configs/labels_config.yaml
@@ -156,7 +159,7 @@ Dành cho người gán nhãn trực tiếp trên trình duyệt máy tính:
 
 ---
 
-> 📖 **Xem chi tiết tài liệu kiến trúc kỹ thuật và báo cáo tổng kết toàn diện**: Xem file [`SYSTEM_DOCUMENTATION.md`](file:///d:/QuanProject/locate-anything/SYSTEM_DOCUMENTATION.md).
+> 📖 **Xem chi tiết tài liệu kiến trúc kỹ thuật và báo cáo tổng kết toàn diện**: Xem file [`SYSTEM_DOCUMENTATION.md`](SYSTEM_DOCUMENTATION.md).
 
 ---
 
@@ -168,6 +171,7 @@ locate-anything/
 │   └── labels_config.yaml          # ⭐ File cấu hình nhãn duy nhất (Box, Line, 3D, Poly, Mask, Skeleton)
 ├── locate_cvat/
 │   ├── label_registry.py           # Core Registry, Validator, API Push và Spec Converter
+│   ├── rle_utils.py                # ⭐ Bộ mã hóa & giải mã Native CVAT RLE Mask Bitmap
 │   └── translators/                # Các bộ chuyển đổi đa định dạng
 │       ├── coco_translator.py      # Chuẩn COCO 1.0 (Box, Polygon)
 │       ├── skeleton_translator.py  # Chuẩn COCO Keypoints (Khung xương)
@@ -183,9 +187,10 @@ locate-anything/
 │   └── ai_engine/                  # Dispatcher và các model wrappers
 │       ├── dispatcher.py
 │       ├── sam2_engine.py
-│       ├── detector_engine.py
+│       ├── detector_engine.py      # Hỗ trợ YOLOv11 Instance Segmentation & Bounding Box
 │       └── pose_engine.py
 ├── colab/
+│   ├── cvat_auto_sync.py           # Worker tự động kéo ảnh, suy luận GPU và đồng bộ CVAT
 │   └── launch_colab.ipynb          # Notebook One-click chạy trên Google Colab T4 GPU
 ├── scripts/
 │   └── deploy_vps.sh               # Script 1 lệnh tự động hóa cài đặt trên VPS
@@ -196,7 +201,7 @@ locate-anything/
 │   ├── label_configuration_guide.md# Sổ tay hướng dẫn cấu hình và quản lý nhãn
 │   ├── client_guide.md             # Hướng dẫn cài đặt Userscript cho annotator
 │   └── deployment_guide.md         # Hướng dẫn triển khai Colab và VPS
-├── tests/                          # Bộ Unit Test tự động (12/12 passed)
+├── tests/                          # Bộ Unit Test tự động (13/13 passed)
 │   ├── test_label_registry.py
 │   └── test_ai_engine.py
 ├── plan.md                         # Kế hoạch kỹ thuật
@@ -211,4 +216,4 @@ Chạy toàn bộ bộ test tự động:
 ```bash
 python -m unittest discover tests
 ```
-Kết quả kiểm thử: **`Ran 12 tests in 0.266s - OK`** (100% pass trên toàn hệ thống).
+Kết quả kiểm thử: **`Ran 13 tests in 0.285s - OK`** (100% pass trên toàn hệ thống).
