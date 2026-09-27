@@ -1,5 +1,7 @@
 # 🎯 CVAT Universal Multi-Modal Labeling Booster & Cloud/VPS AI Engine
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Wanlee199/locate-anything/blob/main/colab/launch_colab.ipynb)
+
 Hệ thống toàn diện giải quyết triệt để 2 vấn đề lớn nhất khi sử dụng CVAT:
 1. **Máy tính cá nhân bị giật lag, ngốn RAM/CPU** khi Canvas phải vẽ hàng trăm nhãn/polygon phức tạp.
 2. **Quy trình gán nhãn thủ công chậm** và **triển khai hạ tầng AI lên server thuê (Google Colab / VPS) quá cồng kềnh**.
