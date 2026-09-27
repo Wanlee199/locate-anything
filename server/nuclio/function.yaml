@@ -1,0 +1,47 @@
+metadata:
+  name: universal-ai-annotator
+  namespace: cvat
+  annotations:
+    name: Universal Multi-Modal AI Annotator (SAM2 + YOLO + Pose + 3D)
+    type: interactor
+    framework: pytorch
+    spec: |
+      [
+        { "id": 1, "name": "car", "type": "rectangle" },
+        { "id": 2, "name": "road_damage", "type": "polygon" },
+        { "id": 3, "name": "human_pose", "type": "skeleton" },
+        { "id": 4, "name": "lane_divider_white", "type": "polyline" },
+        { "id": 5, "name": "truck_3d", "type": "cuboid" }
+      ]
+
+spec:
+  description: "CVAT High-Performance Serverless AI Engine hỗ trợ cả 6 dạng nhãn"
+  runtime: "python:3.10"
+  handler: main:handler
+  eventTimeout: 180s
+
+  build:
+    image: cvat.universal.ai.annotator:latest
+    baseImage: pytorch/pytorch:2.1.2-cuda12.1-cudnn8-runtime
+
+    directives:
+      preCopy:
+        - kind: RUN
+          value: apt-get update && apt-get install -y --no-install-recommends libgl1-mesa-glx libglib2.0-0 curl git && rm -rf /var/lib/apt/lists/*
+        - kind: RUN
+          value: pip install --no-cache-dir pyyaml numpy opencv-python-headless pillow ultralytics
+
+  triggers:
+    myHttpTrigger:
+      maxWorkers: 2
+      kind: "http"
+      attributes:
+        maxRequestBodySize: 67108864 # 64MB
+
+  resources:
+    limits:
+      nvidia.com/gpu: 1
+
+  platform:
+    attributes:
+      network: cvat

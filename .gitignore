@@ -1,0 +1,43 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Model Weights (Do not commit large binary weights to git)
+weights/
+*.pt
+*.pth
+*.onnx
+*.bin
+*.gguf
+
+# Environment and Virtualenvs
+.env
+.venv/
+env/
+venv/
+ENV/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Logs and temporary files
+*.log
+tmp/
+temp/
+cloudflared*
+
+# IDE settings
+.vscode/
+.idea/
+*.swp
+*.swo
+.agents/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+.agents/

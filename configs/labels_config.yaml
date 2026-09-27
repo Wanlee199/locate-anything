@@ -1,0 +1,177 @@
+# ==============================================================================
+# CVAT Universal Multi-Modal Labeling Configuration
+# Hỗ trợ đầy đủ 6 dạng hình học:
+#   1. box      - 2D Bounding Box (rectangle)
+#   2. polygon  - Đa giác bám viền khép kín
+#   3. mask     - Bitmap / RLE segmentation mask
+#   4. line     - Polyline (vạch kẻ đường, ranh giới, dây cáp)
+#   5. 3d       - 3D Cuboid Bounding Box (tâm, kích thước, góc quay)
+#   6. skeleton - Khung xương Pose Estimation (nodes khớp + edges xương nối)
+# ==============================================================================
+
+version: "1.0"
+project_name: "Smart Autonomous & Industrial Inspection"
+description: "Cấu hình nhãn độc lập chuẩn CVAT cho dự án thị giác máy tính đa hình thái"
+
+labels:
+  # ----------------------------------------------------------------------------
+  # 1. 📦 Bounding Box 2D (rectangle)
+  # ----------------------------------------------------------------------------
+  - name: "car"
+    type: "box"
+    color: "#ff3b30"
+    hotkey: "1"
+    description: "Xe ô tô con 4-7 chỗ"
+    model_backend: "yolo"
+    attributes:
+      - name: "occluded"
+        input_type: "checkbox"
+        default_value: "false"
+      - name: "vehicle_color"
+        input_type: "select"
+        values: ["white", "black", "silver", "red", "blue", "other"]
+        default_value: "white"
+
+  - name: "pedestrian"
+    type: "box"
+    color: "#34c759"
+    hotkey: "2"
+    description: "Người đi bộ hoặc đứng trên đường"
+    model_backend: "yolo"
+    attributes:
+      - name: "is_carrying_backpack"
+        input_type: "checkbox"
+        default_value: "false"
+
+  # ----------------------------------------------------------------------------
+  # 2. 📐 Polygon (Đa giác bám viền chi tiết)
+  # ----------------------------------------------------------------------------
+  - name: "road_damage"
+    type: "polygon"
+    color: "#ff9500"
+    hotkey: "3"
+    description: "Ổ gà, vết nứt bề mặt đường nhựa"
+    model_backend: "sam2"
+    attributes:
+      - name: "severity"
+        input_type: "select"
+        values: ["minor", "moderate", "severe"]
+        default_value: "minor"
+
+  - name: "building_roof"
+    type: "polygon"
+    color: "#5856d6"
+    hotkey: "4"
+    description: "Mái nhà công trình nhìn từ flycam/vệ tinh"
+    model_backend: "sam2"
+
+  # ----------------------------------------------------------------------------
+  # 3. 🎭 Mask (Bitmap / RLE Semantic Segmentation)
+  # ----------------------------------------------------------------------------
+  - name: "drivable_road"
+    type: "mask"
+    color: "#007aff"
+    hotkey: "5"
+    description: "Bề mặt đường xe có thể lưu thông"
+    model_backend: "sam2"
+
+  - name: "vegetation"
+    type: "mask"
+    color: "#30d158"
+    hotkey: "6"
+    description: "Cây cối, thảm cỏ hai bên đường"
+    model_backend: "sam2"
+
+  # ----------------------------------------------------------------------------
+  # 4. 📏 Line / Polyline (Vạch kẻ đường, ranh giới, dây cáp)
+  # ----------------------------------------------------------------------------
+  - name: "lane_divider_white"
+    type: "line"
+    color: "#ffffff"
+    hotkey: "7"
+    description: "Vạch kẻ làn đường màu trắng (đứt đoạn hoặc liền)"
+    model_backend: "contour"
+    attributes:
+      - name: "line_style"
+        input_type: "select"
+        values: ["solid", "dashed", "double_solid"]
+        default_value: "dashed"
+
+  - name: "curb_boundary"
+    type: "line"
+    color: "#ffd60a"
+    hotkey: "8"
+    description: "Ranh giới vỉa hè với lòng đường"
+    model_backend: "contour"
+
+  # ----------------------------------------------------------------------------
+  # 5. 🧊 3D Cuboid (Bounding Box 3D / LiDAR Point Cloud)
+  # ----------------------------------------------------------------------------
+  - name: "truck_3d"
+    type: "3d"
+    color: "#af52de"
+    hotkey: "9"
+    description: "Xe tải kích thước lớn trong không gian 3 chiều"
+    model_backend: "cuboid_3d"
+    attributes:
+      - name: "motion_state"
+        input_type: "select"
+        values: ["parked", "moving", "stopped"]
+        default_value: "moving"
+
+  - name: "warehouse_pallet_3d"
+    type: "3d"
+    color: "#ff2d55"
+    hotkey: "0"
+    description: "Pallet hàng hóa trong kho thông minh"
+    model_backend: "cuboid_3d"
+
+  # ----------------------------------------------------------------------------
+  # 6. 🦴 Skeleton (Pose Estimation: khớp nối và khung xương)
+  # ----------------------------------------------------------------------------
+  - name: "human_pose"
+    type: "skeleton"
+    color: "#00c7be"
+    hotkey: "p"
+    description: "Khung xương tư thế người chuẩn COCO (17 keypoints)"
+    model_backend: "yolo_pose"
+    skeleton_config:
+      nodes:
+        - { id: 0, name: "nose", color: "#e6194b" }
+        - { id: 1, name: "left_eye", color: "#3cb44b" }
+        - { id: 2, name: "right_eye", color: "#ffe119" }
+        - { id: 3, name: "left_ear", color: "#4363d8" }
+        - { id: 4, name: "right_ear", color: "#f58231" }
+        - { id: 5, name: "left_shoulder", color: "#911eb4" }
+        - { id: 6, name: "right_shoulder", color: "#46f0f0" }
+        - { id: 7, name: "left_elbow", color: "#f032e6" }
+        - { id: 8, name: "right_elbow", color: "#bcf60c" }
+        - { id: 9, name: "left_wrist", color: "#fabebe" }
+        - { id: 10, name: "right_wrist", color: "#008080" }
+        - { id: 11, name: "left_hip", color: "#e6beff" }
+        - { id: 12, name: "right_hip", color: "#9a6324" }
+        - { id: 13, name: "left_knee", color: "#fffac8" }
+        - { id: 14, name: "right_knee", color: "#800000" }
+        - { id: 15, name: "left_ankle", color: "#aaffc3" }
+        - { id: 16, name: "right_ankle", color: "#808000" }
+      edges:
+        # Khuôn mặt
+        - [0, 1]
+        - [0, 2]
+        - [1, 3]
+        - [2, 4]
+        # Thân trên
+        - [5, 6]
+        - [5, 11]
+        - [6, 12]
+        - [11, 12]
+        # Tay trái & tay phải
+        - [5, 7]
+        - [7, 9]
+        - [6, 8]
+        - [8, 10]
+        # Chân trái & chân phải
+        - [11, 13]
+        - [13, 15]
+        - [12, 14]
+        - [14, 16]
