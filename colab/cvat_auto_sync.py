@@ -44,7 +44,7 @@ class CVATSyncWorker:
     def _headers(self):
         return {
             "Authorization": f"Token {self.token}",
-            "Accept": "application/json",
+            "Accept": "application/vnd.cvat+json, application/json;q=0.9",
         }
 
     def get_task_info(self):
