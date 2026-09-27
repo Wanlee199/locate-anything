@@ -90,24 +90,25 @@ class DetectorEngine:
                                 "points": [round(x1, 1), round(y1, 1), round(x2, 1), round(y2, 1)],
                                 "type": "rectangle",
                             })
-                    if results:
-                        return results
+                # Khi model thật đã chạy trên ảnh: trả về kết quả thật (kể cả không tìm thấy vật thể nào)
+                return results
             except Exception as e:
                 print(f"[WARN] Lỗi khi chạy YOLO inference: {e}")
 
-        # 2. Fallback / Simulated detection cho testing
-        targets = target_labels or ["car"]
-        for idx, lbl in enumerate(targets):
-            x1 = round(w * (0.1 + idx * 0.25), 1)
-            y1 = round(h * (0.2 + idx * 0.15), 1)
-            x2 = round(min(w, x1 + w * 0.2), 1)
-            y2 = round(min(h, y1 + h * 0.2), 1)
+        # 2. Fallback / Simulated detection: CHỈ DÙNG CHO UNIT TEST (khi không tải được model hoặc không có ảnh)
+        if not self._is_loaded or image is None:
+            targets = target_labels or ["car"]
+            for idx, lbl in enumerate(targets):
+                x1 = round(w * (0.1 + idx * 0.25), 1)
+                y1 = round(h * (0.2 + idx * 0.15), 1)
+                x2 = round(min(w, x1 + w * 0.2), 1)
+                y2 = round(min(h, y1 + h * 0.2), 1)
 
-            results.append({
-                "label": lbl,
-                "confidence": 0.92,
-                "points": [x1, y1, x2, y2],
-                "type": "rectangle",
-            })
+                results.append({
+                    "label": lbl,
+                    "confidence": 0.92,
+                    "points": [x1, y1, x2, y2],
+                    "type": "rectangle",
+                })
 
         return results
