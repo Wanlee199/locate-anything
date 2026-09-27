@@ -43,7 +43,7 @@ class CVATSyncWorker:
 
     def _headers(self):
         return {
-            "Authorization": f"Token {self.token}",
+            "Authorization": f"Bearer {self.token}",
             "Accept": "application/vnd.cvat+json, application/json;q=0.9",
         }
 
