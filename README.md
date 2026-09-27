@@ -11,7 +11,7 @@ Hệ thống toàn diện giải quyết triệt để 2 vấn đề lớn nhấ
 ## 🌟 Tính Năng Nổi Bật
 
 ### 1. ⭐ Module Quản Lý Nhãn Độc Lập (Decoupled Universal Schema)
-- **Tách riêng 100% cấu hình nhãn**: Bạn chỉ cần chỉnh sửa một file duy nhất [`configs/labels_config.yaml`](file:///d:/QuanProject/locate-anything/configs/labels_config.yaml). Sửa đổi nhãn bất kỳ lúc nào mà **không bao giờ ảnh hưởng tới code của tool**.
+- **Tách riêng 100% cấu hình nhãn**: Bạn chỉ cần chỉnh sửa một file duy nhất [`configs/labels_config.yaml`](locate-anything/configs/labels_config.yaml). Sửa đổi nhãn bất kỳ lúc nào mà **không bao giờ ảnh hưởng tới code của tool**.
 - **Hỗ trợ đầy đủ 6 dạng hình học thị giác máy tính**:
   - 📦 **`box`**: 2D Bounding Box chuẩn VOC / YOLO / COCO.
   - 📐 **`polygon`**: Đa giác bám viền khép kín (ổ gà, vết nứt, tổn thương).
@@ -29,7 +29,7 @@ Hệ thống toàn diện giải quyết triệt để 2 vấn đề lớn nhấ
 ---
 
 ### 2. ⚡ Client-Side "CVAT Performance Booster" (Userscript)
-- **Cài đặt 1 click qua Tampermonkey**: File [`client/cvat-booster.user.js`](file:///d:/QuanProject/locate-anything/client/cvat-booster.user.js) hoạt động trên mọi trình duyệt (Chrome, Edge, Firefox, Cốc Cốc, Brave).
+- **Cài đặt 1 click qua Tampermonkey**: File [`client/cvat-booster.user.js`](locate-anything/client/cvat-booster.user.js) hoạt động trên mọi trình duyệt (Chrome, Edge, Firefox, Cốc Cốc, Brave).
 - **Đồng hồ đo FPS & Bộ đếm đối tượng thời gian thực**: Giám sát tải phần cứng trực tiếp trên màn hình gán nhãn.
 - **Thanh trượt Tùy biến Ngưỡng (Threshold Slider)**: Cho phép annotator tự do chỉnh ngưỡng cảnh báo từ **20 đến 300 đối tượng** ngay trên giao diện widget, tự động lưu vào trình duyệt (`localStorage`).
 - **Chế độ Solo Focus Mode (Vũ khí chống giật lag)**:
@@ -48,19 +48,19 @@ Hệ thống toàn diện giải quyết triệt để 2 vấn đề lớn nhấ
   - `line` & `3d` $\rightarrow$ Trích xuất polyline và 3D cuboid.
 - **Cấu hình Nuclio Serverless chuẩn CVAT**:
   - Thiết lập **`eventTimeout: 180s`** giúp khắc phục hoàn toàn lỗi **504 Gateway Timeout** khi chạy các mô hình nặng trên CVAT.
-- **Dịch vụ FastAPI Độc lập ([`server/api_service.py`](file:///d:/QuanProject/locate-anything/server/api_service.py))**:
+- **Dịch vụ FastAPI Độc lập ([`server/api_service.py`](locate-anything/server/api_service.py))**:
   - Không cần cài cụm microservices 10 container đồ sộ của CVAT, chỉ cần 1 lệnh là có ngay AI Engine có GPU phục vụ API.
 
 ---
 
 ### 4. 🚀 CI/CD Automation & Triển Khai One-Click
 - **Triển khai 1-Click trên Google Colab T4 GPU (Miễn phí)**:
-  - Mở file [`colab/launch_colab.ipynb`](file:///d:/QuanProject/locate-anything/colab/launch_colab.ipynb) trên Colab $\rightarrow$ Chọn **T4 GPU** $\rightarrow$ Bấm **Run all**.
+  - Mở file [`colab/launch_colab.ipynb`](locate-anything/colab/launch_colab.ipynb) trên Colab $\rightarrow$ Chọn **T4 GPU** $\rightarrow$ Bấm **Run all**.
   - Tự động mở **Cloudflare Tunnel** (`cloudflared`) sinh đường dẫn HTTPS công khai bảo mật kết nối với máy cá nhân.
 - **Triển khai 1-Lệnh trên VPS (Vultr / FPT Cloud / Ubuntu)**:
-  - Chạy script [`scripts/deploy_vps.sh`](file:///d:/QuanProject/locate-anything/scripts/deploy_vps.sh) $\rightarrow$ Tự động cài Docker, cấu hình NVIDIA Container Toolkit (nếu có GPU) và khởi chạy container.
+  - Chạy script [`scripts/deploy_vps.sh`](locate-anything/scripts/deploy_vps.sh) $\rightarrow$ Tự động cài Docker, cấu hình NVIDIA Container Toolkit (nếu có GPU) và khởi chạy container.
 - **GitHub Actions Pipeline**:
-  - Tự động build và push Docker image lên GitHub Container Registry (GHCR) qua file [`.github/workflows/deploy-images.yml`](file:///d:/QuanProject/locate-anything/.github/workflows/deploy-images.yml).
+  - Tự động build và push Docker image lên GitHub Container Registry (GHCR) qua file [`.github/workflows/deploy-images.yml`](locate-anything/.github/workflows/deploy-images.yml).
 
 ---
 

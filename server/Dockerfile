@@ -42,7 +42,7 @@ COPY server/ /app/server/
 COPY tools/ /app/tools/
 
 # 4. Tải trước các model weights gọn nhẹ để triệt tiêu thời gian cold-start
-RUN python -c "from ultralytics import YOLO; YOLO('yolo11n.pt'); YOLO('yolo11n-pose.pt')" && \
+RUN python -c "from ultralytics import YOLO; YOLO('yolo11n-seg.pt'); YOLO('yolo11n-pose.pt')" && \
     wget -q -O /app/sam2.1_t.pt https://github.com/facebookresearch/sam2/releases/download/v1.0/sam2_hiera_tiny.pt || true
 
 EXPOSE 8000
