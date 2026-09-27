@@ -134,20 +134,32 @@ class CVATSyncWorker:
         print(f"🏷️ Danh sách nhãn trong Task: {label_names}")
         print(f"🖼️ Tổng số ảnh cần gán nhãn: {size}")
 
-        # Tự động hỗ trợ toàn bộ các nhãn có trong Task của CVAT
+        # Tự động đồng bộ và tôn trọng loại nhãn (type: mask vs box) được cấu hình trên Task CVAT
+        from locate_cvat.label_registry import LabelItem, LabelType
+
         target_labels = []
-        for l_name in label_names:
-            item = self.registry.get(l_name)
-            if item:
-                target_labels.append(item)
+        for l in self.task_labels:
+            l_name = l.get("name")
+            l_type_raw = str(l.get("type", "any")).strip().lower()
+
+            if l_type_raw in ["mask", "polygon", "segmentation"]:
+                target_type = LabelType.POLYGON
+            elif l_type_raw in ["rectangle", "box"]:
+                target_type = LabelType.BOX
             else:
-                from locate_cvat.label_registry import LabelItem, LabelType
-                target_labels.append(LabelItem(name=l_name, type=LabelType.BOX))
+                # Nếu trên CVAT để 'any' hoặc không xác định: tra cứu trong file cấu hình registry
+                reg_item = self.registry.get(l_name)
+                target_type = reg_item.type if reg_item else LabelType.BOX
+
+            target_labels.append(LabelItem(name=l_name, type=target_type))
 
         if not target_labels and self.registry.labels:
             target_labels = [self.registry.labels[0]]
 
-        print(f"🎯 Mô hình AI sẽ gán nhãn cho: {[l.name for l in target_labels]}")
+        print(f"🎯 Mô hình AI sẽ gán nhãn cho {len(target_labels)} đối tượng:")
+        for t in target_labels:
+            type_desc = "Polygon Mask ôm viền khít" if t.type in (LabelType.POLYGON, LabelType.MASK) else "2D Bounding Box"
+            print(f"   • {t.name:<12} -> Dạng: {t.type.value.upper()} ({type_desc})")
 
         all_shapes = []
         start_time = time.time()
@@ -166,6 +178,7 @@ class CVATSyncWorker:
                     image_shape=(h, w),
                     image=img,
                     label_name=label_item.name,
+                    target_type=label_item.type,
                 )
                 for res in results:
                     detected_label = res.get("label", label_item.name)

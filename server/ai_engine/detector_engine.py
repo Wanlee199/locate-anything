@@ -12,7 +12,7 @@ class DetectorEngine:
     Wrapper thực thi phát hiện bounding box 2D.
     """
 
-    def __init__(self, model_name: str = "yolo11n.pt", device: str = "auto"):
+    def __init__(self, model_name: str = "yolo11n-seg.pt", device: str = "auto"):
         self.model_name = model_name
         self.device = device
         self._model = None
@@ -28,7 +28,7 @@ class DetectorEngine:
             actual_device = "cuda" if torch.cuda.is_available() and self.device != "cpu" else "cpu"
             self._model = YOLO(self.model_name)
             self._is_loaded = True
-            print(f"[INFO] Detector ({self.model_name}) da san sang tren: {actual_device}")
+            print(f"[INFO] Detector & Segmenter ({self.model_name}) da san sang tren: {actual_device}")
             return True
         except Exception as e:
             print(f"[WARN] Chay che do du phong Detector: {e}")
@@ -41,23 +41,27 @@ class DetectorEngine:
         image: Optional[Any] = None,   # PIL.Image, numpy array
         target_labels: Optional[List[str]] = None,
         confidence_threshold: float = 0.35,
+        desired_type: str = "auto",    # 'auto', 'rectangle' (box), 'polygon' (mask)
     ) -> List[Dict[str, Any]]:
         """
         Phát hiện vật thể trên ảnh sử dụng YOLO thật (khi có image) hoặc fallback.
+        Hỗ trợ tự động xuất Bounding Box hoặc Polygon Mask tùy theo cấu hình nhãn.
         """
         h, w = image_shape
         results = []
 
-        # 1. Inference với model YOLO thật
+        # 1. Inference với model YOLO/YOLO-Seg thật
         if self._is_loaded and self._model is not None and image is not None:
             try:
                 preds = self._model.predict(image, conf=confidence_threshold, verbose=False)
                 if preds and len(preds) > 0:
-                    boxes = preds[0].boxes
+                    pred = preds[0]
+                    boxes = pred.boxes
+                    masks = getattr(pred, "masks", None)
                     class_names = self._model.names
                     target_lower = [t.lower() for t in (target_labels or [])]
 
-                    for box in boxes:
+                    for idx, box in enumerate(boxes):
                         cls_id = int(box.cls[0].item())
                         detected_name = str(class_names.get(cls_id, cls_id)).lower()
                         conf = float(box.conf[0].item())
@@ -84,12 +88,25 @@ class DetectorEngine:
 
                         if match:
                             x1, y1, x2, y2 = box.xyxy[0].tolist()
-                            results.append({
-                                "label": matched_label,
-                                "confidence": round(conf, 3),
-                                "points": [round(x1, 1), round(y1, 1), round(x2, 1), round(y2, 1)],
-                                "type": "rectangle",
-                            })
+
+                            # Kiểm tra nếu cần xuất dạng polygon / mask
+                            is_mask_mode = desired_type in ["polygon", "mask"]
+                            if is_mask_mode and masks is not None and len(masks.xy) > idx and len(masks.xy[idx]) >= 3:
+                                poly_pts = masks.xy[idx]
+                                flat_pts = [round(float(c), 1) for pt in poly_pts for c in pt]
+                                results.append({
+                                    "label": matched_label,
+                                    "confidence": round(conf, 3),
+                                    "points": flat_pts,
+                                    "type": "polygon",
+                                })
+                            else:
+                                results.append({
+                                    "label": matched_label,
+                                    "confidence": round(conf, 3),
+                                    "points": [round(x1, 1), round(y1, 1), round(x2, 1), round(y2, 1)],
+                                    "type": "rectangle",
+                                })
                 # Khi model thật đã chạy trên ảnh: trả về kết quả thật (kể cả không tìm thấy vật thể nào)
                 return results
             except Exception as e:
@@ -104,11 +121,21 @@ class DetectorEngine:
                 x2 = round(min(w, x1 + w * 0.2), 1)
                 y2 = round(min(h, y1 + h * 0.2), 1)
 
-                results.append({
-                    "label": lbl,
-                    "confidence": 0.92,
-                    "points": [x1, y1, x2, y2],
-                    "type": "rectangle",
-                })
+                if desired_type in ["polygon", "mask"]:
+                    # Mô phỏng polygon 4 góc khép kín
+                    poly_points = [x1, y1, x2, y1, x2, y2, x1, y2]
+                    results.append({
+                        "label": lbl,
+                        "confidence": 0.92,
+                        "points": poly_points,
+                        "type": "polygon",
+                    })
+                else:
+                    results.append({
+                        "label": lbl,
+                        "confidence": 0.92,
+                        "points": [x1, y1, x2, y2],
+                        "type": "rectangle",
+                    })
 
         return results

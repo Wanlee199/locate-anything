@@ -39,31 +39,51 @@ class ModelDispatcher:
         image: Optional[Any] = None,
         points: Optional[List[List[float]]] = None,
         bbox: Optional[List[float]] = None,
+        target_type: Optional[Union[str, LabelType]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Định tuyến yêu cầu gán nhãn tới engine tương ứng.
         Trả về kết quả chuẩn định dạng CVAT Annotations.
         """
-        label_item = self.registry.get(label_name) if self.registry else None
-        label_type = label_item.type if label_item else LabelType.BOX
+        if target_type is not None:
+            if isinstance(target_type, str):
+                try:
+                    label_type = LabelType.from_str(target_type)
+                except ValueError:
+                    label_type = LabelType.BOX
+            else:
+                label_type = target_type
+        else:
+            label_item = self.registry.get(label_name) if self.registry else None
+            label_type = label_item.type if label_item else LabelType.BOX
 
         h, w = image_shape
 
-        # 1. Định tuyến Polygon & Mask -> SAM 2.1
+        # 1. Định tuyến Polygon & Mask
         if label_type in (LabelType.POLYGON, LabelType.MASK):
-            polygon_pts = self.sam2_engine.segment_from_prompt(
-                image_shape=image_shape,
-                points=points,
-                bbox=bbox,
-            )
-            return [
-                {
-                    "type": "polygon",
-                    "label": label_name,
-                    "points": polygon_pts,
-                    "confidence": 0.95,
-                }
-            ]
+            # Nếu có interactive prompt (click hoặc bbox) -> Dùng SAM 2.1
+            if points or bbox:
+                polygon_pts = self.sam2_engine.segment_from_prompt(
+                    image_shape=image_shape,
+                    points=points,
+                    bbox=bbox,
+                )
+                return [
+                    {
+                        "type": "polygon",
+                        "label": label_name,
+                        "points": polygon_pts,
+                        "confidence": 0.95,
+                    }
+                ]
+            else:
+                # Không có prompt tương tác (batch tự động phát hiện trên toàn ảnh) -> YOLO-Seg
+                return self.detector_engine.detect(
+                    image_shape=image_shape,
+                    image=image,
+                    target_labels=[label_name],
+                    desired_type="polygon",
+                )
 
         # 2. Định tuyến Bounding Box 2D -> YOLO / Detector
         elif label_type == LabelType.BOX:
@@ -81,6 +101,7 @@ class ModelDispatcher:
                 image_shape=image_shape,
                 image=image,
                 target_labels=[label_name],
+                desired_type="rectangle",
             )
 
         # 3. Định tuyến Skeleton -> Pose Engine
