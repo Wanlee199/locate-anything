@@ -62,22 +62,22 @@ class DetectorEngine:
                         detected_name = str(class_names.get(cls_id, cls_id)).lower()
                         conf = float(box.conf[0].item())
 
-                        # COCO class mapping thông minh cho giao thông & đối tượng
+                        # COCO class mapping chuẩn xác theo từng loại đối tượng
                         match = False
-                        matched_label = target_labels[0] if target_labels else detected_name
+                        matched_label = detected_name
 
                         if detected_name in target_lower:
                             match = True
                             matched_label = detected_name
-                        elif "car" in target_lower and detected_name in ["car", "bus", "truck", "van", "suv"]:
+                        elif detected_name in ["suv", "van"] and "car" in target_lower:
                             match = True
                             matched_label = "car"
-                        elif "vehicle" in target_lower and detected_name in ["car", "bus", "truck", "motorcycle"]:
+                        elif detected_name in ["bicycle", "motorcycle"] and "bike" in target_lower:
                             match = True
-                            matched_label = "vehicle"
-                        elif "pedestrian" in target_lower and detected_name in ["person"]:
+                            matched_label = "bike"
+                        elif detected_name == "person" and ("pedestrian" in target_lower or "person" in target_lower):
                             match = True
-                            matched_label = "pedestrian"
+                            matched_label = "pedestrian" if "pedestrian" in target_lower else "person"
                         elif not target_labels:
                             match = True
                             matched_label = detected_name

@@ -32,6 +32,39 @@ labels:
         values: ["white", "black", "silver", "red", "blue", "other"]
         default_value: "white"
 
+  - name: "bus"
+    type: "box"
+    color: "#ff9500"
+    hotkey: "b"
+    description: "Xe bus, xe khách công cộng"
+    model_backend: "yolo"
+    attributes:
+      - name: "occluded"
+        input_type: "checkbox"
+        default_value: "false"
+
+  - name: "truck"
+    type: "box"
+    color: "#af52de"
+    hotkey: "t"
+    description: "Xe tải chở hàng, xe bán tải, container"
+    model_backend: "yolo"
+    attributes:
+      - name: "occluded"
+        input_type: "checkbox"
+        default_value: "false"
+
+  - name: "bike"
+    type: "box"
+    color: "#00c7be"
+    hotkey: "k"
+    description: "Xe đạp hoặc xe máy hai bánh"
+    model_backend: "yolo"
+    attributes:
+      - name: "has_rider"
+        input_type: "checkbox"
+        default_value: "true"
+
   - name: "pedestrian"
     type: "box"
     color: "#34c759"

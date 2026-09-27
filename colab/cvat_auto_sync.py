@@ -110,6 +110,16 @@ class CVATSyncWorker:
             return self.task_labels[0].get("id", 0)
         return 1
 
+    def clear_annotations(self):
+        """Xóa annotations cũ trên task trước khi đồng bộ mới."""
+        url = f"{self.host}/api/tasks/{self.task_id}/annotations"
+        req = urllib.request.Request(url, headers=self._headers(), method="DELETE")
+        try:
+            with urllib.request.urlopen(req) as resp:
+                pass
+        except Exception:
+            pass
+
     def run(self):
         print("=" * 65)
         print(f"🚀 BẮT ĐẦU ĐỒNG BỘ TỰ ĐỘNG COLAB GPU <---> CVAT TASK #{self.task_id}")
@@ -124,11 +134,17 @@ class CVATSyncWorker:
         print(f"🏷️ Danh sách nhãn trong Task: {label_names}")
         print(f"🖼️ Tổng số ảnh cần gán nhãn: {size}")
 
-        # Chỉ chạy các mô hình AI tương ứng với nhãn thực sự có trong Task
-        task_label_names = {l.get("name", "").lower() for l in self.task_labels}
-        target_labels = [l for l in self.registry.labels if l.name.lower() in task_label_names]
+        # Tự động hỗ trợ toàn bộ các nhãn có trong Task của CVAT
+        target_labels = []
+        for l_name in label_names:
+            item = self.registry.get(l_name)
+            if item:
+                target_labels.append(item)
+            else:
+                from locate_cvat.label_registry import LabelItem, LabelType
+                target_labels.append(LabelItem(name=l_name, type=LabelType.BOX))
+
         if not target_labels and self.registry.labels:
-            print(f"[INFO] Tự động chọn mô hình detector cơ bản cho nhãn: {label_names}")
             target_labels = [self.registry.labels[0]]
 
         print(f"🎯 Mô hình AI sẽ gán nhãn cho: {[l.name for l in target_labels]}")
@@ -151,11 +167,11 @@ class CVATSyncWorker:
                     image=img,
                     label_name=label_item.name,
                 )
-                label_id = self._resolve_label_id(label_item.name)
                 for res in results:
+                    detected_label = res.get("label", label_item.name)
                     shape_record = {
                         "frame": frame_idx,
-                        "label_id": label_id,
+                        "label_id": self._resolve_label_id(detected_label),
                         "type": res.get("type", "rectangle"),
                         "points": res.get("points", []),
                         "occluded": False,
@@ -166,8 +182,9 @@ class CVATSyncWorker:
 
         print(f"\n✅ Đã hoàn thành suy luận AI cho {size} ảnh! Tổng số shapes sinh ra: {len(all_shapes)}")
         
-        # 3. Đẩy kết quả ngược lên CVAT
-        print("📤 Đang đẩy toàn bộ nhãn lên CVAT Server...")
+        # 3. Đẩy kết quả ngược lên CVAT (làm sạch nhãn rác cũ trước khi ghi)
+        print("📤 Đang dọn dẹp nhãn cũ và cập nhật nhãn mới lên CVAT Server...")
+        self.clear_annotations()
         self.upload_annotations(all_shapes)
         
         elapsed = time.time() - start_time
