@@ -64,6 +64,102 @@ Hệ thống toàn diện giải quyết triệt để 2 vấn đề lớn nhấ
 
 ---
 
+## 🚀 Hướng Dẫn Từng Bước Khởi Chạy Tool (Step-by-Step Quickstart)
+
+### 📌 Kịch bản 1: Tự động gán nhãn AI qua Google Colab T4 GPU (Khuyên dùng nhất)
+Toàn bộ quy trình gán nhãn tự động hàng trăm ảnh từ Colab về máy tính cá nhân chỉ mất **3 phút** thực hiện theo 4 bước sau:
+
+#### Bước 1: Mở cầu nối Cloudflare Tunnel trên máy tính cá nhân
+CVAT đang chạy trên máy tính bạn tại `http://localhost:8080`. Để Google Colab (trên Internet) kết nối được vào máy bạn mà không bị tường lửa/modem chặn:
+1. Mở một cửa sổ PowerShell tại thư mục dự án và chạy:
+   ```powershell
+   # Tải công cụ Cloudflare Tunnel (chỉ cần chạy 1 lần đầu tiên)
+   Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile "cloudflared.exe"
+
+   # Mở cổng kết nối an toàn ra ngoài Internet (BẮT BUỘC có cờ --http-host-header localhost)
+   .\cloudflared.exe tunnel --url http://localhost:8080 --http-host-header localhost
+   ```
+2. Trên màn hình sẽ in ra một đường link HTTPS công khai, ví dụ:
+   ```text
+   https://xxxx-yyyy-zzzz.trycloudflare.com
+   ```
+   *(Hãy giữ nguyên cửa sổ PowerShell này chạy ngầm để duy trì kết nối).*
+
+---
+
+#### Bước 2: Lấy Personal Access Token trên CVAT máy tính
+1. Mở trình duyệt vào `http://localhost:8080` $\rightarrow$ Đăng nhập tài khoản của bạn.
+2. Bấm vào **Avatar** ở góc trên cùng bên phải $\rightarrow$ Chọn **Profile**.
+3. Chọn tab **API Tokens** $\rightarrow$ Bấm nút **Create** (Tạo mới) $\rightarrow$ Đặt tên bất kỳ (VD: `colab`) rồi xác nhận.
+4. Copy chuỗi Token hiển thị (có dạng: `xxxxxxxx.yyyyyyyyyyyyyyyyyyyy...`).
+
+---
+
+#### Bước 3: Mở Google Colab bằng 1 Click
+Bấm trực tiếp vào huy hiệu bên dưới để mở notebook trên Google Colab:
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Wanlee199/locate-anything/blob/main/colab/launch_colab.ipynb)
+
+*(Hoặc mở [Google Colab](https://colab.research.google.com) $\rightarrow$ Chọn tab GitHub $\rightarrow$ Nhập `Wanlee199/locate-anything` $\rightarrow$ Chọn file `colab/launch_colab.ipynb`).*
+
+⚠️ **Nhớ bật GPU miễn phí**: Vào menu **Runtime** $\rightarrow$ **Change runtime type** $\rightarrow$ Chọn **T4 GPU** $\rightarrow$ Bấm **Save**.
+
+---
+
+#### Bước 4: Chạy tự động gán nhãn
+Tại Google Colab, điền thông tin kết nối và bấm **Play (Run)**:
+
+```python
+# 1. Tải mã nguồn mới nhất từ GitHub
+%cd /content
+!rm -rf /content/locate-anything
+!git clone https://github.com/Wanlee199/locate-anything.git
+%cd /content/locate-anything
+!pip install -q ultralytics pillow pyyaml
+
+# 2. Cấu hình kết nối tới máy tính của bạn
+CVAT_HOST = "https://xxxx-yyyy-zzzz.trycloudflare.com"  # Link Cloudflare ở Bước 1
+CVAT_TASK_ID = 1                                         # ID của Task trên CVAT
+CVAT_TOKEN = "xxxxxxxx.yyyyyyyyyyyyyyyyyyyy..."           # Token lấy ở Bước 2
+
+# 3. Kích hoạt AI tự động gán nhãn
+!python colab/cvat_auto_sync.py --host $CVAT_HOST --token $CVAT_TOKEN --task-id $CVAT_TASK_ID
+```
+
+GPU Colab sẽ tự động:
+- Kéo từng frame ảnh từ CVAT máy bạn về.
+- Chạy YOLOv11 nhận diện chính xác từng xe bus, ô tô con, xe tải, xe máy.
+- Đẩy toàn bộ annotations hoàn chỉnh ngược lại lên CVAT.
+- Khi màn hình hiện `🎉 THÀNH CÔNG!`, bạn chỉ việc F5 trang CVAT trên máy tính: toàn bộ ảnh đã được vẽ sẵn nhãn bám khít từng đối tượng!
+
+---
+
+### ⚡ Kịch bản 2: Bật "Vũ Khí Chống Giật Lag" (Userscript Solo Focus Mode)
+Dành cho người gán nhãn trực tiếp trên trình duyệt máy tính:
+1. Cài đặt tiện ích **Tampermonkey** trên trình duyệt Chrome/Edge/Firefox/Brave.
+2. Mở file [`client/cvat-booster.user.js`](file:///d:/QuanProject/locate-anything/client/cvat-booster.user.js) $\rightarrow$ Cài đặt script vào Tampermonkey.
+3. Mở CVAT trên trình duyệt: Một Widget kính mờ hiển thị FPS và bộ đếm đối tượng sẽ xuất hiện ở góc dưới bên trái.
+4. Khi Canvas bị lag do có quá nhiều nhãn: Nhấn phím tắt **`Shift + F`** để kích hoạt **Solo Focus Mode** $\rightarrow$ Ẩn 90% nhãn rác, đưa tốc độ vẽ trở lại **60 FPS siêu mượt**!
+
+---
+
+### 📦 Kịch bản 3: Quản lý và đẩy cấu hình nhãn lên CVAT bằng CLI
+1. Mở file [`configs/labels_config.yaml`](file:///d:/QuanProject/locate-anything/configs/labels_config.yaml) và chỉnh sửa nhãn tùy ý.
+2. Kiểm tra tính hợp lệ của file cấu hình nhãn:
+   ```bash
+   python tools/cvat_labels_cli.py validate configs/labels_config.yaml
+   ```
+3. Đẩy thẳng cấu hình nhãn mới lên CVAT Project qua REST API trong 1 giây:
+   ```bash
+   python tools/cvat_labels_cli.py push configs/labels_config.yaml --host http://localhost:8080 --token <YOUR_TOKEN> --project-id 1
+   ```
+
+---
+
+> 📖 **Xem chi tiết tài liệu kiến trúc kỹ thuật và báo cáo tổng kết toàn diện**: Xem file [`SYSTEM_DOCUMENTATION.md`](file:///d:/QuanProject/locate-anything/SYSTEM_DOCUMENTATION.md).
+
+---
+
 ## 📂 Cấu Trúc Thư Mục Dự Án
 
 ```
