@@ -148,6 +148,7 @@ class CVATSyncWorker:
             for label_item in target_labels:
                 results = self.dispatcher.dispatch(
                     image_shape=(h, w),
+                    image=img,
                     label_name=label_item.name,
                 )
                 label_id = self._resolve_label_id(label_item.name)

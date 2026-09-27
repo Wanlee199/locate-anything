@@ -38,31 +38,66 @@ class DetectorEngine:
     def detect(
         self,
         image_shape: Tuple[int, int],  # (height, width)
+        image: Optional[Any] = None,   # PIL.Image, numpy array
         target_labels: Optional[List[str]] = None,
-        confidence_threshold: float = 0.5,
+        confidence_threshold: float = 0.35,
     ) -> List[Dict[str, Any]]:
         """
-        Phát hiện vật thể trên ảnh.
-        Trả về danh sách:
-        [
-          {"label": "car", "confidence": 0.92, "points": [xtl, ytl, xbr, ybr], "type": "rectangle"}
-        ]
+        Phát hiện vật thể trên ảnh sử dụng YOLO thật (khi có image) hoặc fallback.
         """
         h, w = image_shape
         results = []
 
-        # Nếu model thật có sẵn
-        if self._is_loaded and self._model is not None:
+        # 1. Inference với model YOLO thật
+        if self._is_loaded and self._model is not None and image is not None:
             try:
-                # Inference thật
-                pass
-            except Exception as e:
-                print(f"Lỗi inference detector: {e}")
+                preds = self._model.predict(image, conf=confidence_threshold, verbose=False)
+                if preds and len(preds) > 0:
+                    boxes = preds[0].boxes
+                    class_names = self._model.names
+                    target_lower = [t.lower() for t in (target_labels or [])]
 
-        # Fallback / Simulated detection cho testing
+                    for box in boxes:
+                        cls_id = int(box.cls[0].item())
+                        detected_name = str(class_names.get(cls_id, cls_id)).lower()
+                        conf = float(box.conf[0].item())
+
+                        # COCO class mapping thông minh cho giao thông & đối tượng
+                        match = False
+                        matched_label = target_labels[0] if target_labels else detected_name
+
+                        if detected_name in target_lower:
+                            match = True
+                            matched_label = detected_name
+                        elif "car" in target_lower and detected_name in ["car", "bus", "truck", "van", "suv"]:
+                            match = True
+                            matched_label = "car"
+                        elif "vehicle" in target_lower and detected_name in ["car", "bus", "truck", "motorcycle"]:
+                            match = True
+                            matched_label = "vehicle"
+                        elif "pedestrian" in target_lower and detected_name in ["person"]:
+                            match = True
+                            matched_label = "pedestrian"
+                        elif not target_labels:
+                            match = True
+                            matched_label = detected_name
+
+                        if match:
+                            x1, y1, x2, y2 = box.xyxy[0].tolist()
+                            results.append({
+                                "label": matched_label,
+                                "confidence": round(conf, 3),
+                                "points": [round(x1, 1), round(y1, 1), round(x2, 1), round(y2, 1)],
+                                "type": "rectangle",
+                            })
+                    if results:
+                        return results
+            except Exception as e:
+                print(f"[WARN] Lỗi khi chạy YOLO inference: {e}")
+
+        # 2. Fallback / Simulated detection cho testing
         targets = target_labels or ["car"]
         for idx, lbl in enumerate(targets):
-            # Tạo box hợp lý trong kích thước ảnh
             x1 = round(w * (0.1 + idx * 0.25), 1)
             y1 = round(h * (0.2 + idx * 0.15), 1)
             x2 = round(min(w, x1 + w * 0.2), 1)

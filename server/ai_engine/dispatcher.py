@@ -36,6 +36,7 @@ class ModelDispatcher:
         self,
         image_shape: Tuple[int, int],  # (height, width)
         label_name: str,
+        image: Optional[Any] = None,
         points: Optional[List[List[float]]] = None,
         bbox: Optional[List[float]] = None,
     ) -> List[Dict[str, Any]]:
@@ -78,6 +79,7 @@ class ModelDispatcher:
                 ]
             return self.detector_engine.detect(
                 image_shape=image_shape,
+                image=image,
                 target_labels=[label_name],
             )
 
