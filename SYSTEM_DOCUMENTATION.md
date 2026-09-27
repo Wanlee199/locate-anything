@@ -151,14 +151,24 @@ Trong quá trình kết nối thực tế giữa Google Colab và CVAT trên má
   - *Nguyên nhân*: Khi một nhãn mục tiêu (ví dụ `bike`) không có trong bức ảnh, mô hình trả về `[]`. Code cũ bị rơi xuống hàm Fallback mô phỏng (dành cho unit test) và tự sinh ra 1 box giả trên cây.
   - *Giải pháp*: Trả về `[]` thật sự khi mô hình chạy xong, triệt tiêu hoàn toàn hộp giả.
 
+### 🔍 Phát hiện 6: Đảm bảo Đúng Chuẩn Type Nhãn theo từng Task (Native Mask RLE vs Polygon)
+- **Hiện tượng**: Trên CVAT Task, người dùng tạo nhãn `car` với `type: "mask"`, nhưng khi cho chạy qua tool thì bị đánh nhãn thành `bbox` (rectangle).
+- **Nguyên nhân**:
+  1. File `configs/labels_config.yaml` định nghĩa tĩnh `car` dạng `box`, tool Colab ưu tiên đọc file tĩnh hơn cấu hình thực tế của Task trên CVAT Server.
+  2. Trong CVAT REST API, `type: "mask"` **không nhận tọa độ $x,y$**, mà yêu cầu mảng nén **Run-Length Encoding (RLE)** nhị phân: `points = [rle_0, rle_1, ..., xtl, ytl, xbr, ybr]`.
+- **Giải pháp**:
+  1. **Dynamic Task Sync**: Tool tự động tra cứu endpoint `/api/labels?task_id={id}` để lấy đúng loại nhãn (`mask`, `polygon`, `box`, `line`, `skeleton`) do người dùng chọn trên chính Task đó.
+  2. **YOLOv11 Instance Segmentation (`yolo11n-seg.pt`)**: Sinh đồng thời cả ma trận bitmap lẫn viền vector.
+  3. **Module `locate_cvat/rle_utils.py`**: Mã hóa tự động bitmap sang định dạng Native CVAT RLE Mask, trả về đúng `type: "mask"` chuẩn CVAT 100%.
+
 ---
 
 ## 5. Kết Quả Nghiệm Thu Thực Tế
 
-- **Kiểm thử tự động**: 12/12 unit tests passed (`tests/test_label_registry.py`, `tests/test_ai_engine.py`).
+- **Kiểm thử tự động**: 13/13 unit tests passed (`tests/test_label_registry.py`, `tests/test_ai_engine.py`).
 - **Nghiệm thu thực tế trên Task CVAT (4 ảnh giao thông thực tế)**:
   - 🚌 **Xe bus lớn**: Đóng khung bám sát mép viền ngoài xe.
-  - 🚗 **Xe ô tô con**: Đóng khung chính xác xe đang di chuyển.
+  - 🚗 **Xe ô tô con**: Tự động sinh Native Bitmap Mask (RLE) ôm sát từng pixel thân xe khi task chọn `mask`.
   - 🚙 **Xe SUV & Xe Van**: Nhận diện chuẩn xác từng phương tiện độc lập.
   - 🚚 **Xe tải nhỏ**: Phát hiện chính xác ở khoảng cách xa.
   - 🌲 **Vùng tán cây**: Hoàn toàn sạch bóng, không còn bất kỳ nhãn rác nào.
