@@ -82,8 +82,12 @@ class CVATSyncWorker:
         }).encode("utf-8")
         
         req = urllib.request.Request(url, data=payload, headers=headers, method="PUT")
-        with urllib.request.urlopen(req) as resp:
-            return json.loads(resp.read().decode("utf-8"))
+        try:
+            with urllib.request.urlopen(req) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            err_msg = e.read().decode("utf-8", errors="ignore")
+            raise RuntimeError(f"CVAT từ chối annotations (HTTP {e.code}): {err_msg}")
 
     def get_task_labels(self) -> list:
         """Lấy danh sách các nhãn thực sự được định nghĩa trong Task."""
@@ -120,6 +124,15 @@ class CVATSyncWorker:
         print(f"🏷️ Danh sách nhãn trong Task: {label_names}")
         print(f"🖼️ Tổng số ảnh cần gán nhãn: {size}")
 
+        # Chỉ chạy các mô hình AI tương ứng với nhãn thực sự có trong Task
+        task_label_names = {l.get("name", "").lower() for l in self.task_labels}
+        target_labels = [l for l in self.registry.labels if l.name.lower() in task_label_names]
+        if not target_labels and self.registry.labels:
+            print(f"[INFO] Tự động chọn mô hình detector cơ bản cho nhãn: {label_names}")
+            target_labels = [self.registry.labels[0]]
+
+        print(f"🎯 Mô hình AI sẽ gán nhãn cho: {[l.name for l in target_labels]}")
+
         all_shapes = []
         start_time = time.time()
 
@@ -131,8 +144,8 @@ class CVATSyncWorker:
             img = self.download_frame(frame_idx)
             w, h = img.size
 
-            # 2. Chạy AI Model Dispatcher cho từng nhãn mục tiêu
-            for label_item in self.registry.labels:
+            # 2. Chạy AI Model Dispatcher cho các nhãn mục tiêu
+            for label_item in target_labels:
                 results = self.dispatcher.dispatch(
                     image_shape=(h, w),
                     label_name=label_item.name,
