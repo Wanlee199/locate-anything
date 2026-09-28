@@ -10,6 +10,8 @@ from locate_cvat.label_registry import LabelRegistry, LabelType, LabelItem
 from server.ai_engine.sam2_engine import SAM2Engine
 from server.ai_engine.detector_engine import DetectorEngine
 from server.ai_engine.pose_engine import PoseEngine
+from server.ai_engine.pointpillars_engine import PointPillarsEngine
+from server.ai_engine.shape_adapters import ShapeAdapters
 
 
 class ModelDispatcher:
@@ -25,6 +27,7 @@ class ModelDispatcher:
         self.sam2_engine = SAM2Engine(device=device)
         self.detector_engine = DetectorEngine(device=device)
         self.pose_engine = PoseEngine(device=device)
+        self.pointpillars_engine = PointPillarsEngine()
 
     def load_engines(self) -> None:
         """Tải các weights mô hình lên GPU."""
@@ -40,6 +43,7 @@ class ModelDispatcher:
         points: Optional[List[List[float]]] = None,
         bbox: Optional[List[float]] = None,
         target_type: Optional[Union[str, LabelType]] = None,
+        point_cloud: Optional[Any] = None,
     ) -> List[Dict[str, Any]]:
         """
         Định tuyến yêu cầu gán nhãn tới engine tương ứng.
@@ -154,16 +158,51 @@ class ModelDispatcher:
                 }
             ]
 
-        # 5. Định tuyến 3D Cuboid
+        # 5. Định tuyến 3D Cuboid (Point Cloud LiDAR)
         elif label_type == LabelType.CUBOID_3D:
+            if point_cloud is not None and len(point_cloud) > 0:
+                preds = self.pointpillars_engine.predict(point_cloud, target_label=label_name)
+                if preds:
+                    for p in preds:
+                        p["center"] = p["position"]  # Tương thích ngược
+                    return preds
+
             return [
                 {
                     "type": "cuboid",
                     "label": label_name,
+                    "position": [0.0, 5.0, -1.0],
                     "center": [0.0, 5.0, -1.0],
                     "dimensions": [2.0, 4.5, 1.8],
                     "rotation": [0.0, 0.0, 0.2],
                     "confidence": 0.88,
+                }
+            ]
+
+        # 6. Định tuyến Ellipse
+        elif label_type == LabelType.ELLIPSE:
+            return [
+                {
+                    "type": "ellipse",
+                    "label": label_name,
+                    "cx": round(w * 0.5, 1),
+                    "cy": round(h * 0.5, 1),
+                    "rx": round(w * 0.2, 1),
+                    "ry": round(h * 0.15, 1),
+                    "rotation": 0.0,
+                    "confidence": 0.90,
+                }
+            ]
+
+        # 7. Định tuyến Tag (Image-level classification)
+        elif label_type == LabelType.TAG:
+            tag_val = ShapeAdapters.classify_image_tag(image)
+            return [
+                {
+                    "type": "tag",
+                    "label": label_name,
+                    "tag_value": tag_val,
+                    "confidence": 0.95,
                 }
             ]
 

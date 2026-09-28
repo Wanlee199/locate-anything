@@ -30,6 +30,8 @@ class LabelType(str, Enum):
     LINE = "line"
     CUBOID_3D = "3d"
     SKELETON = "skeleton"
+    ELLIPSE = "ellipse"
+    TAG = "tag"
 
     @classmethod
     def from_str(cls, val: str) -> "LabelType":
@@ -50,11 +52,15 @@ class LabelType(str, Enum):
             "skeleton": cls.SKELETON,
             "pose": cls.SKELETON,
             "keypoints": cls.SKELETON,
+            "ellipse": cls.ELLIPSE,
+            "circle": cls.ELLIPSE,
+            "tag": cls.TAG,
+            "classification": cls.TAG,
         }
         if val_clean in mapping:
             return mapping[val_clean]
         raise ValueError(
-            f"Không hỗ trợ loại nhãn '{val}'. Các loại hỗ trợ: box, polygon, mask, line, 3d, skeleton"
+            f"Không hỗ trợ loại nhãn '{val}'. Các loại hỗ trợ: box, polygon, mask, line, 3d, skeleton, ellipse, tag"
         )
 
     def to_cvat_type(self) -> str:
@@ -66,6 +72,8 @@ class LabelType(str, Enum):
             LabelType.LINE: "polyline",
             LabelType.CUBOID_3D: "cuboid",
             LabelType.SKELETON: "skeleton",
+            LabelType.ELLIPSE: "ellipse",
+            LabelType.TAG: "tag",
         }
         return mapping[self]
 

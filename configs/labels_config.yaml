@@ -208,3 +208,27 @@ labels:
         - [13, 15]
         - [12, 14]
         - [14, 16]
+
+  # ----------------------------------------------------------------------------
+  # 7. ⭕ Ellipse (Hình elip / hình tròn)
+  # ----------------------------------------------------------------------------
+  - name: "traffic_sign_circle"
+    type: "ellipse"
+    color: "#ffcc00"
+    hotkey: "e"
+    description: "Biển báo giao thông hình tròn"
+    model_backend: "contour"
+
+  # ----------------------------------------------------------------------------
+  # 8. 🏷️ Tag (Gán nhãn cấp độ toàn ảnh)
+  # ----------------------------------------------------------------------------
+  - name: "scene_weather"
+    type: "tag"
+    color: "#5ac8fa"
+    description: "Bối cảnh thời tiết hoặc điều kiện ánh sáng của toàn ảnh"
+    model_backend: "auto"
+    attributes:
+      - name: "weather"
+        input_type: "select"
+        values: ["sunny", "rainy", "night", "foggy"]
+        default_value: "sunny"

@@ -26,6 +26,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from locate_cvat.label_registry import LabelRegistry
+from locate_cvat.pcd_utils import read_pcd_bytes
 from server.ai_engine.dispatcher import ModelDispatcher
 
 
@@ -68,7 +69,15 @@ class CVATSyncWorker:
             img_bytes = resp.read()
             return Image.open(io.BytesIO(img_bytes))
 
-    def upload_annotations(self, shapes: list):
+    def download_pcd_frame(self, frame_idx: int):
+        """Tải 1 frame dữ liệu đám mây điểm 3D (.pcd/.bin) từ CVAT về Colab."""
+        url = f"{self.host}/api/tasks/{self.task_id}/data?type=frame&number={frame_idx}"
+        req = urllib.request.Request(url, headers=self._headers())
+        with urllib.request.urlopen(req) as resp:
+            raw_bytes = resp.read()
+            return read_pcd_bytes(raw_bytes)
+
+    def upload_annotations(self, shapes: list, tags: list = None):
         """Đẩy toàn bộ annotations đã gán nhãn lên CVAT Task (PUT /api/tasks/{id}/annotations)."""
         url = f"{self.host}/api/tasks/{self.task_id}/annotations?action=create"
         headers = self._headers()
@@ -77,7 +86,7 @@ class CVATSyncWorker:
         payload = json.dumps({
             "shapes": shapes,
             "tracks": [],
-            "tags": [],
+            "tags": tags or [],
             "version": 0,
         }).encode("utf-8")
         
@@ -134,7 +143,7 @@ class CVATSyncWorker:
         print(f"🏷️ Danh sách nhãn trong Task: {label_names}")
         print(f"🖼️ Tổng số ảnh cần gán nhãn: {size}")
 
-        # Tự động đồng bộ và tôn trọng 100% loại nhãn (type: mask vs polygon vs box) được cấu hình trên Task CVAT
+        # Tự động đồng bộ và tôn trọng 100% loại nhãn (type: mask vs polygon vs box vs 3d) được cấu hình trên Task CVAT
         from locate_cvat.label_registry import LabelItem, LabelType
 
         target_labels = []
@@ -154,6 +163,10 @@ class CVATSyncWorker:
                 target_type = LabelType.SKELETON
             elif l_type_raw in ["3d", "cuboid"]:
                 target_type = LabelType.CUBOID_3D
+            elif l_type_raw in ["ellipse", "circle"]:
+                target_type = LabelType.ELLIPSE
+            elif l_type_raw in ["tag", "classification"]:
+                target_type = LabelType.TAG
             else:
                 # Nếu trên CVAT để 'any' hoặc không xác định: tra cứu trong file cấu hình registry
                 reg_item = self.registry.get(l_name)
@@ -164,55 +177,120 @@ class CVATSyncWorker:
         if not target_labels and self.registry.labels:
             target_labels = [self.registry.labels[0]]
 
+        dimension = str(task_info.get("dimension", "2d")).lower()
+        is_3d_task = (dimension == "3d") or all(t.type == LabelType.CUBOID_3D for t in target_labels)
+
         print(f"🎯 Mô hình AI sẽ gán nhãn cho {len(target_labels)} đối tượng chuẩn xác theo Task:")
         for t in target_labels:
             if t.type == LabelType.MASK:
                 type_desc = "Native Bitmap MASK (Brush RLE chuẩn CVAT)"
             elif t.type == LabelType.POLYGON:
                 type_desc = "Vector Polygon (Đa giác viền kéo thả)"
+            elif t.type == LabelType.CUBOID_3D:
+                type_desc = "3D Point Cloud Cuboid (Hộp lập phương LiDAR)"
+            elif t.type == LabelType.ELLIPSE:
+                type_desc = "Ellipse (Hình elip toán học)"
+            elif t.type == LabelType.TAG:
+                type_desc = "Tag (Phân loại toàn ảnh)"
             else:
                 type_desc = "2D Bounding Box (rectangle)"
             print(f"   • {t.name:<12} -> Chuẩn type: {t.type.value.upper():<8} ({type_desc})")
 
         all_shapes = []
+        all_tags = []
         start_time = time.time()
 
-        for frame_idx in range(size):
-            sys.stdout.write(f"\r  ⏳ Đang xử lý frame {frame_idx + 1}/{size}...")
-            sys.stdout.flush()
+        if is_3d_task:
+            print("🧊 [3D LiDAR Pipeline] Kích hoạt suy luận Point Cloud (PointPillars Engine)...")
+            for frame_idx in range(size):
+                sys.stdout.write(f"\r  ⏳ Đang quét LiDAR frame {frame_idx + 1}/{size}...")
+                sys.stdout.flush()
 
-            # 1. Kéo ảnh về GPU Colab
-            img = self.download_frame(frame_idx)
-            w, h = img.size
+                # 1. Kéo dữ liệu đám mây điểm .pcd về GPU Colab
+                pcd_points = self.download_pcd_frame(frame_idx)
 
-            # 2. Chạy AI Model Dispatcher cho các nhãn mục tiêu
-            for label_item in target_labels:
-                results = self.dispatcher.dispatch(
-                    image_shape=(h, w),
-                    image=img,
-                    label_name=label_item.name,
-                    target_type=label_item.type,
-                )
-                for res in results:
-                    detected_label = res.get("label", label_item.name)
-                    shape_type = res.get("type", label_item.type.to_cvat_type())
-                    shape_record = {
-                        "frame": frame_idx,
-                        "label_id": self._resolve_label_id(detected_label),
-                        "type": shape_type,
-                        "points": res.get("points", []),
-                        "occluded": False,
-                        "z_order": 0,
-                        "attributes": [],
-                    }
-                    all_shapes.append(shape_record)
+                # 2. Suy luận hộp 3D cho các nhãn mục tiêu
+                for label_item in target_labels:
+                    results = self.dispatcher.dispatch(
+                        image_shape=(0, 0),
+                        label_name=label_item.name,
+                        target_type=LabelType.CUBOID_3D,
+                        point_cloud=pcd_points,
+                    )
+                    for res in results:
+                        detected_label = res.get("label", label_item.name)
+                        shape_record = {
+                            "frame": frame_idx,
+                            "label_id": self._resolve_label_id(detected_label),
+                            "type": "cuboid",
+                            "position": res.get("position", res.get("center", [0.0, 0.0, 0.0])),
+                            "dimensions": res.get("dimensions", [1.0, 1.0, 1.0]),
+                            "rotation": res.get("rotation", [0.0, 0.0, 0.0]),
+                            "occluded": False,
+                            "z_order": 0,
+                            "attributes": [],
+                        }
+                        all_shapes.append(shape_record)
 
-        print(f"\n✅ Đã hoàn thành suy luận AI cho {size} ảnh! Tổng số shapes sinh ra: {len(all_shapes)}")
+        else:
+            print("🖼️ [2D Vision Pipeline] Kích hoạt suy luận Ảnh RGB (YOLO / SAM2 / Pose)...")
+            for frame_idx in range(size):
+                sys.stdout.write(f"\r  ⏳ Đang xử lý frame {frame_idx + 1}/{size}...")
+                sys.stdout.flush()
+
+                # 1. Kéo ảnh về GPU Colab
+                img = self.download_frame(frame_idx)
+                w, h = img.size
+
+                # 2. Chạy AI Model Dispatcher cho các nhãn mục tiêu
+                for label_item in target_labels:
+                    results = self.dispatcher.dispatch(
+                        image_shape=(h, w),
+                        image=img,
+                        label_name=label_item.name,
+                        target_type=label_item.type,
+                    )
+                    for res in results:
+                        detected_label = res.get("label", label_item.name)
+                        shape_type = res.get("type", label_item.type.to_cvat_type())
+
+                        if shape_type == "tag":
+                            all_tags.append({
+                                "frame": frame_idx,
+                                "label_id": self._resolve_label_id(detected_label),
+                                "attributes": [{"name": "tag", "value": res.get("tag_value", "day")}],
+                            })
+                        elif shape_type == "ellipse":
+                            all_shapes.append({
+                                "frame": frame_idx,
+                                "label_id": self._resolve_label_id(detected_label),
+                                "type": "ellipse",
+                                "cx": res.get("cx", 0.0),
+                                "cy": res.get("cy", 0.0),
+                                "rx": res.get("rx", 0.0),
+                                "ry": res.get("ry", 0.0),
+                                "rotation": res.get("rotation", 0.0),
+                                "occluded": False,
+                                "z_order": 0,
+                                "attributes": [],
+                            })
+                        else:
+                            all_shapes.append({
+                                "frame": frame_idx,
+                                "label_id": self._resolve_label_id(detected_label),
+                                "type": shape_type,
+                                "points": res.get("points", []),
+                                "occluded": False,
+                                "z_order": 0,
+                                "attributes": [],
+                            })
+
+        print(f"\n✅ Đã hoàn thành suy luận AI cho {size} frame! Tổng số shapes sinh ra: {len(all_shapes)}")
         
         # 3. Đẩy kết quả ngược lên CVAT (làm sạch nhãn rác cũ trước khi ghi)
         print("📤 Đang dọn dẹp nhãn cũ và cập nhật nhãn mới lên CVAT Server...")
         self.clear_annotations()
-        self.upload_annotations(all_shapes)
+        self.upload_annotations(all_shapes, tags=all_tags)
         
         elapsed = time.time() - start_time
         print("=" * 65)

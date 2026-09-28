@@ -1,380 +1,437 @@
 # 🗺️ KẾ HOẠCH PHÁT TRIỂN & BẢN THIẾT KẾ KIẾN TRÚC PHIÊN BẢN V2
-# (LOCATE-ANYTHING V2: GUIDELINE-DRIVEN INTELLIGENT AUTO-ANNOTATION)
+# (LOCATE-ANYTHING V2: MULTI-MODAL 3D & EXTENDED SHAPES FIRST)
 
-> **Tài liệu Định hướng Kỹ thuật & Bản thiết kế Tính năng cho Nhánh `locateV2`**  
+> **Tài liệu Định hướng Kỹ thuật & Kế hoạch Thực thi cho Nhánh `locateV2`**  
 > *Dự án: Locate-Anything (CVAT Universal AI Labeling Booster)*  
-> *Tác giả & Đội ngũ Phát triển | Phiên bản thiết kế: 2.0.0-Draft*
+> *Định hướng: **Ưu tiên hoàn thiện 3D Point Cloud & Đầy đủ 9 hình thái nhãn CVAT trước; Tự động đọc Rule từ CVAT chuyển sang giai đoạn sau.***  
+> *Phiên bản thiết kế: 2.2.0-Actionable*
 
 ---
 
 ## 📌 MỤC LỤC
-1. [Tầm Nhìn & Mục Tiêu Cốt Lõi V2](#1-tầm-nhìn--mục-tiêu-cốt-lõi-v2)
-2. [Khoảng Trống Của V1 & Bài Toán Cần Giải Quyết](#2-khoảng-trống-của-v1--bài-toán-cần-giải-quyết)
-3. [Kiến Trúc Kỹ Thuật Tổng Thể V2](#3-kiến-trúc-kỹ-thuật-tổng-thể-v2)
-4. [Bốn Trụ Cột Tính Năng Của V2](#4-bốn-trụ-cột-tính-năng-của-v2)
-   - [4.1. Spatial & Geometric Rule Engine (Quy tắc không gian)](#41-spatial--geometric-rule-engine-quy-tắc-không-gian)
-   - [4.2. Auto-Attributes Resolver (Tự động điền thuộc tính)](#42-auto-attributes-resolver-tự-động-điền-thuộc-tính)
-   - [4.3. CVAT Task Guideline API Bridge (Đọc rule từ CVAT)](#43-cvat-task-guideline-api-bridge-đọc-rule-từ-cvat)
-   - [4.4. Vision-Language Model Integration (Florence-2 / Grounded-SAM)](#44-vision-language-model-integration-florence-2--grounded-sam)
-5. [Đặc Tả File Cấu Hình Quy Tắc (`configs/task_rules.yaml`)](#5-đặc-tả-file-cấu-hình-quy-tắc-configstask_rulesyaml)
-6. [Mã Nguồn Khung Sườn Mẫu (Reference Starter Code)](#6-mã-nguồn-khung-sườn-mẫu-reference-starter-code)
-7. [Kế Hoạch Triển Khai Step-by-Step (Sprints & Milestones)](#7-kế-hoạch-triển-khai-step-by-step-sprints--milestones)
-8. [Chỉ Số Đo Lường Hiệu Quả (KPIs & Return on Investment)](#8-chỉ-số-đo-lường-hiệu-quả-kpis--return-on-investment)
+1. [Chiến Lược Điều Chỉnh Ưu Tiên (Priority Shift)](#1-chiến-lược-điều-chỉnh-ưu-tiên-priority-shift)
+2. [Khoảng Trống Của V1 & Bài Toán Cần Giải Quyết Ngay](#2-khoảng-trống-của-v1--bài-toán-cần-giải-quyết-ngay)
+3. [Kiến Trúc Kỹ Thuật Tổng Thể (Dual-Stream Ingestion)](#3-kiến-trúc-kỹ-thuật-tổng-thể-dual-stream-ingestion)
+4. [Các Trụ Cột Triển Khai Ngay (Giai Đoạn 1)](#4-các-trụ-cột-triển-khai-ngay-giai-đoạn-1)
+   - [4.1. 3D LiDAR Point Cloud Auto-Annotation Engine (PointPillars / OpenPCDet)](#41-3d-lidar-point-cloud-auto-annotation-engine-pointpillars--openpcdet)
+   - [4.2. Hoàn Thiện Toàn Diện Các Dạng Nhãn (Line, Ellipse, Points, Tag, Video Track)](#42-hoàn-thiện-toàn-diện-các-dạng-nhãn-line-ellipse-points-tag-video-track)
+   - [4.3. Spatial Rule Engine Cơ Bản (Occlusion, Truncation, Size Filter, Color)](#43-spatial-rule-engine-cơ-bản-occlusion-truncation-size-filter-color)
+5. [Các Tính Năng Để Lại Giai Đoạn Sau (Deferred Backlog)](#5-các-tính-năng-để-lại-giai-đoạn-sau-deferred-backlog)
+   - [5.1. CVAT Task Guideline API Bridge (Tự động đọc Markdown từ CVAT)](#51-cvat-task-guideline-api-bridge-tự-động-đọc-markdown-từ-cvat)
+   - [5.2. Vision-Language Model Integration (Florence-2 / Grounded-SAM)](#52-vision-language-model-integration-florence-2--grounded-sam)
+6. [Đặc Tả File Cấu Hình Mở Rộng (`configs/task_rules.yaml`)](#6-đặc-tả-file-cấu-hình-mở-rộng-configstask_rulesyaml)
+7. [Mã Nguồn Khung Sườn Mẫu (Reference Starter Code)](#7-mã-nguồn-khung-sườn-mẫu-reference-starter-code)
+   - [7.1. 3D Point Cloud Ingestion & PointPillars Loader](#71-3d-point-cloud-ingestion--pointpillars-loader)
+   - [7.2. Bộ Chuyển Đổi Polyline (Skeletonization) & Ellipse](#72-bộ-chuyển-đổi-polyline-skeletonization--ellipse)
+   - [7.3. Rule Engine Không gian Cơ bản (Occlusion & Truncation)](#73-rule-engine-không-gian-cơ-bản-occlusion--truncation)
+8. [Kế Hoạch Triển Khai Step-by-Step (3 Sprints Ngắn Hạn)](#8-kế-hoạch-triển-khai-step-by-step-3-sprints-ngắn-hạn)
+9. [Chỉ Số Đo Lường Hiệu Quả (KPIs)](#9-chỉ-số-đo-lường-hiệu-quả-kpis)
 
 ---
 
-## 1. Tầm Nhìn & Mục Tiêu Cốt Lõi V2
+## 1. Chiến Lược Điều Chỉnh Ưu Tiên (Priority Shift)
 
-Trong phiên bản **V1**, chúng ta đã hoàn thành xuất sắc bài toán **Hạ tầng & Kết nối**:
-- Đấu nối thông suốt giữa **Google Colab GPU** và **CVAT Localhost** qua Cloudflare Tunnel.
-- Suy luận siêu tốc đa hình thái: **YOLOv11-Seg** (sinh Mask RLE điểm ảnh hoặc Bounding Box) và **SAM 2.1** trong vòng 10 giây.
-- Đồng bộ chuẩn xác 100% hình thái nhãn (`mask`, `polygon`, `box`) theo từng Task.
+Theo yêu cầu thực tế của dự án, trọng tâm của phiên bản **V2** được cấu trúc lại như sau:
 
-Tuy nhiên, V1 vẫn là **"Tự động gán nhãn thô" (Blind Detection)** — model chỉ phát hiện vật thể xuất hiện trên ảnh mà hoàn toàn chưa hiểu **Luật gán nhãn (Labeling Guidelines & SOP)** của từng dự án cụ thể.
+```
+[THỰC HIỆN NGAY - PHASE 1]:
+  1. 3D Point Cloud LiDAR Auto-Labeling (PointPillars)      --> P0 (Tối quan trọng)
+  2. Mở rộng trọn vẹn các dạng nhãn CVAT (Line, Ellipse,...)--> P0 (Tối quan trọng)
+  3. Quy tắc không gian cơ bản (Che khuất, Cắt cụt, Màu xe)  --> P1
 
-🎯 **Mục tiêu tối thượng của V2**:
-> **Biến hệ thống từ "AI nhận diện cơ học" thành "Trợ lý Gán nhãn Đọc hiểu Quy chuẩn" (Guideline-Aware Annotation Assistant).**  
-> AI không chỉ vẽ khung viền, mà còn tự động áp dụng các quy chuẩn chuyên sâu: tính toán độ che khuất, kiểm tra mép ảnh, lọc vật thể rác, và tự động điền các thuộc tính nghiệp vụ (màu sắc xe, phụ kiện người đi bộ...) theo đúng Guideline.
+[TẠM THỜI ĐỂ LẠI SAU - PHASE 2]:
+  4. CVAT Task Guideline API Bridge (Đọc rule từ Markdown)   --> Deferred (Để sau)
+  5. Open-Vocabulary VLM Engine (Florence-2 Prompting)      --> Deferred (Để sau)
+```
+
+🎯 **Mục tiêu cốt lõi**: Nâng cấp hệ thống trở thành **công cụ gán nhãn tự động đa hình thái toàn diện (Universal Multi-Modal)** hỗ trợ trọn vẹn cả ảnh 2D thông thường lẫn file đám mây điểm 3D LiDAR (`.pcd`), bao phủ 100% hình thái nhãn của CVAT.
 
 ---
 
-## 2. Khoảng Trống Của V1 & Bài Toán Cần Giải Quyết
+## 2. Khoảng Trống Của V1 & Bài Toán Cần Giải Quyết Ngay
 
-Khi đưa vào dây chuyền gán nhãn thực tế quy mô hàng ngàn ảnh, đội ngũ annotator vẫn mất **60% - 70% thời gian** cho các thao tác hậu kiểm thủ công:
-
-| Bài toán thực tế | Tình trạng ở V1 | Giải pháp đột phá ở V2 |
+| Phân hệ / Dạng nhãn | Hiện trạng ở V1 | Giải pháp đột phá ở V2 (Triển khai ngay) |
 | :--- | :--- | :--- |
-| **1. Xe bị che khuất (`occluded`)** | Annotator phải nhìn bằng mắt từng xe xem có bị cây cối, xe khác che không để click tick `occluded = true`. | **Auto-Occlusion**: Tự động tính toán ma trận diện tích giao nhau giữa các hộp bao (IoU/IoA). Xe nào bị che vượt ngưỡng sẽ tự động được bật cờ `occluded: true`. |
-| **2. Xe bị cắt cụt ở viền (`truncated`)** | Phải dò tìm các xe ở góc cạnh mép ảnh để tick thuộc tính `truncated`. | **Auto-Truncation**: Tự động đo khoảng cách từ 4 cạnh Bounding Box tới 4 mép ảnh. Nếu chạm viền $\le 2px \rightarrow$ tự động tick `truncated: true`. |
-| **3. Vật thể li ti ở chân trời** | Model phát hiện cả những chấm xe 5–10 pixel ở xa tít tắp, annotator phải bấm chuột xóa từng box rác. | **Smart Size Filter**: Lọc bỏ tự động các vật thể có chiều rộng/cao hoặc diện tích nhỏ hơn ngưỡng tối thiểu quy định trong Guideline. |
-| **4. Điền thuộc tính màu xe (`vehicle_color`)** | Phải click mở từng xe rồi chọn `white`, `black`, `red` trong dropdown list. | **Auto Color Resolver**: Phân tích biểu đồ màu (Color Histogram) trên vùng ảnh crop thân xe, tự động điền giá trị màu vào thuộc tính. |
-| **5. Đối tượng đặc thù theo prompt** | YOLO thuần bị giới hạn trong 80 lớp COCO, không phân biệt được "xe cứu thương", "xe cảnh sát" hay "xe rác". | **Open-Vocabulary VLM Engine**: Tích hợp mô hình thị giác ngôn ngữ (Florence-2) đọc hiểu văn bản prompt mô tả đặc thù. |
+| **1. 3D Point Cloud (`cuboid`)** | V1 chỉ có mock data giả lập; code bị crash khi gặp file `.pcd` vì cố đọc bằng thư viện ảnh PIL. Annotator phải vẽ hộp 3D thủ công mất 2-3 phút/hộp. | **3D Point Cloud Engine**: Tự động nhận diện task 3D, tải luồng byte `.pcd`, dùng **PointPillars** suy luận 3D Cuboids (`position`, `dimensions`, `rotation`) trong 20ms/scan. |
+| **2. Dải ranh giới / Vạch kẻ (`line`)** | Mới có tọa độ mẫu giả lập trong `dispatcher.py`. | **Line Skeletonization**: Dùng YOLO-Seg/SAM2 cắt mask dải đường $\rightarrow$ thuật toán Rút xương dải viền (Skeletonization + RDP) tạo đường Polyline tim đường chuẩn xác. |
+| **3. Đối tượng hình tròn / bầu dục (`ellipse`)** | CVAT có hỗ trợ shape `ellipse` nhưng tool chưa hỗ trợ. | **Math Ellipse Fitting**: Thuật toán OpenCV `cv2.fitEllipse` từ mask contour, tính tâm, 2 bán kính và góc nghiêng (0 tốn thêm GPU VRAM). |
+| **4. Phân loại toàn ảnh (`tag`)** | Chưa hỗ trợ nhãn cấp độ ảnh (image-level tagging). | **Zero-Shot Classifier**: Tích hợp SigLIP / CLIP hoặc YOLO-cls gán nhãn thời tiết/bối cảnh (`day`, `night`, `rainy`). |
+| **5. Chuỗi video liên tục (`track`)** | V1 gán nhãn ảnh rời rạc, làm mất tính liên tục của video. | **ByteTrack Engine**: Tích hợp thuật toán tracking giữ nguyên `track_id` cho đối tượng xuyên suốt từ frame đầu đến frame cuối. |
+| **6. Xe che khuất (`occluded`) & Chạm mép (`truncated`)** | V1 mặc định luôn để `false`, annotator phải bấm chuột sửa thủ công từng box. | **Basic Rule Engine**: Tự động tính toán giao cắt IoU/IoA để bật cờ `occluded: true` và đo mép ảnh để bật `truncated: true`. |
 
 ---
 
-## 3. Kiến Trúc Kỹ Thuật Tổng Thể V2
-
-Luồng dữ liệu trong phiên bản V2 được thiết kế theo mô hình **Đường ống Xử lý Đa tầng (Multi-Stage Annotation Pipeline)**:
+## 3. Kiến Trúc Kỹ Thuật Tổng Thể (Dual-Stream Ingestion)
 
 ```mermaid
 graph TD
-    subgraph "1. INPUT & SPECIFICATION"
+    subgraph "1. CVAT TASK & INGESTION"
         Task[CVAT Task ID + Host + Token]
-        GuideYAML[configs/task_rules.yaml\nBộ quy tắc định lượng]
-        CVATGuideAPI[CVAT Task Guideline API\nGET /api/tasks/id]
+        CheckDim{Kiểm tra dimension\ntừ GET /api/tasks/id}
+        Stream2D[Kênh 2D: download_frame\nẢnh RGB: JPG / PNG]
+        Stream3D[Kênh 3D: download_pcd_frame\nPoint Cloud: Open3D / PCD]
     end
 
-    subgraph "2. CORE VISION INFERENCE"
-        ColabWorker[colab/cvat_auto_sync.py]
-        YOLO[YOLOv11-Seg Engine\nTrích xuất Bbox + Mask]
+    subgraph "2. CORE AI ENGINES (COLAB GPU T4)"
+        YOLO[YOLOv11-Seg Engine\nBox, Polygon, Mask RLE, Pose]
         SAM[SAM 2.1 Engine\nInteractive Prompts]
-        VLM[Florence-2 VLM Engine\nText-Prompt Guided Detection]
+        LineAdapter[Line Extractor\nSkeletonize + RDP Polyline]
+        EllipseAdapter[Ellipse Fitter\ncv2.fitEllipse Math]
+        TagClassifier[Tag Engine\nSigLIP Zero-Shot Classifier]
+        Tracker[ByteTrack Engine\nVideo Frame Tracking ID]
+        Pillars[PointPillars 3D Engine\n3D Bounding Box LiDAR]
     end
 
-    subgraph "3. RULE ENGINE & ATTRIBUTE RESOLVER"
+    subgraph "3. BASIC RULE ENGINE (SPATIAL & COLOR)"
         RuleEngine[server/ai_engine/rule_engine.py]
-        OccChecker[Tính toán Che khuất IoU/IoA\nOcclusion Checker]
-        TruncChecker[Kiểm tra Chạm biên ảnh\nTruncation Checker]
-        SizeFilter[Bộ lọc Nhiễu Kích thước\nMin/Max Size & Aspect Ratio]
-        ColorExtractor[Bộ Trích xuất Màu Thân xe\nHSV Color Histogram]
+        OccChecker[Tính toán Che khuất IoU/IoA]
+        TruncChecker[Kiểm tra Chạm biên ảnh]
+        SizeFilter[Bộ lọc Nhiễu Kích thước 2D]
+        ColorResolver[Trích xuất Màu thân xe]
+        RangeFilter3D[Bộ lọc Phạm vi LiDAR X,Y,Z]
     end
 
-    subgraph "4. CVAT COMPLIANT EXPORT"
-        RLEUtil[locate_cvat/rle_utils.py\nNative CVAT RLE Mask]
-        PayloadBuilder[Tạo Payload Annotations\nShapes + Occluded + Attributes]
-        CVATServer[CVAT Server REST API\nPATCH /api/tasks/id/annotations]
+    subgraph "4. CVAT REST API PAYLOAD"
+        Export2D[2D Shapes: rectangle, polygon, mask, polyline, ellipse, tag, track]
+        Export3D[3D Shapes: cuboid position, dimensions, rotation]
+        CVATServer[CVAT Server REST API\nPUT /api/tasks/id/annotations]
     end
 
-    Task --> ColabWorker
-    GuideYAML --> RuleEngine
-    CVATGuideAPI --> RuleEngine
+    Task --> CheckDim
+    CheckDim -->|dimension == 2d| Stream2D
+    CheckDim -->|dimension == 3d| Stream3D
 
-    ColabWorker --> YOLO & SAM & VLM
-    YOLO & SAM & VLM --> RuleEngine
+    Stream2D --> YOLO & SAM & Tracker & TagClassifier
+    YOLO --> LineAdapter & EllipseAdapter
+    Stream3D --> Pillars
 
-    RuleEngine --> OccChecker
-    RuleEngine --> TruncChecker
-    RuleEngine --> SizeFilter
-    RuleEngine --> ColorExtractor
+    YOLO & SAM & LineAdapter & EllipseAdapter & Tracker & TagClassifier --> RuleEngine
+    Pillars --> RangeFilter3D
 
-    OccChecker & TruncChecker & SizeFilter & ColorExtractor --> PayloadBuilder
-    PayloadBuilder --> RLEUtil
-    PayloadBuilder --> CVATServer
+    RuleEngine --> OccChecker & TruncChecker & SizeFilter & ColorResolver
+    OccChecker & TruncChecker & SizeFilter & ColorResolver --> Export2D
+    RangeFilter3D --> Export3D
+
+    Export2D --> CVATServer
+    Export3D --> CVATServer
 ```
 
 ---
 
-## 4. Bốn Trụ Cột Tính Năng Của V2
+## 4. Các Trụ Cột Triển Khai Ngay (Giai Đoạn 1)
 
-### 4.1. Spatial & Geometric Rule Engine (Quy tắc không gian)
-Xây dựng module `server/ai_engine/rule_engine.py` thực thi các thuật toán hình học thuần túy (tốc độ thực thi cực nhanh $< 1\text{ms}$ trên CPU/GPU):
-
-1. **Thuật toán Tự động Tính Che khuất (Occlusion Resolution)**:
-   - Với hai hộp bao $A$ và $B$ trong cùng một frame ảnh:
-     $$\text{Overlap}(A, B) = \frac{\text{Area}(A \cap B)}{\min(\text{Area}(A), \text{Area}(B))}$$
-   - Nếu $\text{Overlap} \ge T_{\text{overlap}}$ (ví dụ $0.20$ tức $20\%$):
-     - Xác định vật thể nằm trước và vật thể nằm sau (dựa vào tọa độ đáy $y_{\text{bottom}}$ hoặc Z-order).
-     - Vật thể nằm sau sẽ tự động được gán cờ: `"occluded": true`.
-2. **Thuật toán Tự động Tính Cắt cụt (Edge Truncation)**:
-   - Với ảnh kích thước $(W, H)$ và hộp bao $[x_1, y_1, x_2, y_2]$:
-     - Nếu $x_1 \le \delta$ hoặc $y_1 \le \delta$ hoặc $x_2 \ge W - \delta$ hoặc $y_2 \ge H - \delta$ (với $\delta = 2\text{px}$):
-       - Tự động gán thuộc tính `truncated: true` hoặc cập nhật trường `outside` của CVAT.
-3. **Bộ lọc Kích thước & Tỷ lệ dị thường (Size & Aspect Ratio Guard)**:
-   - Loại bỏ các vật thể có diện tích $< \text{min\_area}$ hoặc chiều rộng $< \text{min\_width}$.
-   - Loại bỏ các hộp dị thường có tỷ lệ $\frac{\text{width}}{\text{height}} > 10$ hoặc $< 0.1$ (nhiễu viền mép).
-4. **Quy tắc Lồng ghép Phân cấp (Contained Object Filter)**:
-   - Nếu một hộp `car` nằm hoàn toàn lọt thỏm $> 85\%$ bên trong một hộp `truck` (ô tô con chở trên thùng xe tải thùng/xe cứu hộ) $\rightarrow$ Tự động loại bỏ hộp xe con theo đúng quy chuẩn không gán nhãn hàng hóa trên xe.
-
----
-
-### 4.2. Auto-Attributes Resolver (Tự động điền thuộc tính)
-Xây dựng module `server/ai_engine/attribute_resolver.py`:
-
-1. **Nhận diện Màu sắc Xe (`vehicle_color`)**:
-   - Cắt crop vùng ảnh thân xe.
-   - Bỏ qua $20\%$ phía trên (nóc kính) và $20\%$ phía dưới (lốp xe và bóng đường).
-   - Chuyển không gian màu sang HSV và phân cụm K-Means ($K=3$) để tìm màu chủ đạo.
-   - So khớp với danh sách thuộc tính CVAT: `white`, `black`, `silver`, `red`, `blue`, `other`.
-   - Tự động điền thuộc tính vào payload gán nhãn:
+### 4.1. 3D LiDAR Point Cloud Auto-Annotation Engine (PointPillars / OpenPCDet)
+1. **Bộ Nạp File Đám Mây Điểm (`download_pcd_frame`)**:
+   - Khi task CVAT là 3D, gọi endpoint `/api/tasks/{id}/data?type=frame&number={idx}` lấy luồng byte nhị phân.
+   - Sử dụng thư viện `open3d` hoặc `pypcd` chuyển thành ma trận numpy $N \times 4$ gồm `(x, y, z, intensity)`.
+2. **Model PointPillars Siêu Tốc**:
+   - Trọng số pretrained nuScenes / KITTI (~25MB), suy luận chỉ **~15ms – 25ms / scan** trên GPU T4 của Google Colab.
+   - Nhận diện 5 lớp vật thể 3D cốt lõi: `Car`, `Pedestrian`, `Cyclist`, `Truck`, `Bus`.
+3. **Bộ Lọc Phạm Vi Quét 3D**:
+   - Lọc các điểm ngoài phạm vi thực tế: $X \in [-40, 40]\text{m}$, $Y \in [-40, 40]\text{m}$, $Z \in [-2.5, 2.0]\text{m}$.
+   - Lọc bỏ các hộp 3D có ít hơn 5 điểm phản xạ.
+4. **Đóng Gói Chuẩn CVAT 3D Cuboids**:
+   - Xuất payload với cấu trúc:
      ```json
-     {"spec_id": 2, "value": "white"}
+     {
+       "frame": 0,
+       "label_id": 1,
+       "type": "cuboid",
+       "position": [x, y, z],
+       "dimensions": [dx, dy, dz],
+       "rotation": [0.0, 0.0, yaw],
+       "occluded": false,
+       "attributes": []
+     }
      ```
-2. **Nhận diện Phụ kiện / Trạng thái**:
-   - Đối với nhãn `bike`: Tự động kiểm tra có box `person` nằm chồng lên đỉnh xe không $\rightarrow$ Nếu có: `has_rider = true`, ngược lại `has_rider = false`.
+
+### 4.2. Hoàn Thiện Toàn Diện Các Dạng Nhãn (Line, Ellipse, Points, Tag, Video Track)
+1. **`line` (Polyline Tim đường)**:
+   - Dùng YOLO-Seg / SAM2 nhận diện dải vạch kẻ $\rightarrow$ Áp dụng thuật toán **Skeletonization** (`skimage.morphology.skeletonize`) và thuật toán **RDP** rút gọn thành các đỉnh đường thẳng nối tiếp `points: [x1, y1, x2, y2, ...]`.
+2. **`ellipse` (Hình elip)**:
+   - Dùng hàm toán học OpenCV `cv2.fitEllipse()` trên viền mask của đối tượng, tự động trích xuất tâm và hai bán kính mà không tốn thêm VRAM.
+3. **`points` (Tập hợp điểm rời / Keypoints)**:
+   - Hỗ trợ xuất tâm hộp `[cx, cy]` phục vụ bài toán đếm (counting) hoặc trích xuất landmarks.
+4. **`tag` (Gán nhãn cấp độ ảnh)**:
+   - Sử dụng mô hình nhẹ **SigLIP Zero-Shot** để phân loại bối cảnh toàn ảnh: `day`, `night`, `rainy`, `foggy`.
+5. **`track` (Video Tracking ID)**:
+   - Tích hợp **ByteTrack** (có sẵn trong Ultralytics qua `model.track()`), tự động gán `track_id` cố định cho từng đối tượng di chuyển qua nhiều frame video.
+
+### 4.3. Spatial Rule Engine Cơ Bản (Occlusion, Truncation, Size Filter, Color)
+1. **Tự động gán `occluded = true`**: Đo diện tích giao thoa IoU/IoA giữa các hộp. Nếu bị che $\ge 20\%$, vật thể đứng sau sẽ tự động được tick che khuất.
+2. **Tự động gán `truncated = true`**: Kiểm tra cạnh hộp cách biên ảnh $\le 2\text{px}$.
+3. **Lọc kích thước rác**: Bỏ qua các hộp nhỏ hơn $15\times 15\text{px}$ hoặc tỷ lệ dị thường.
+4. **Tự động điền màu xe (`vehicle_color`)**: Trích xuất màu chủ đạo thân xe qua HSV K-Means ($K=3$) điền vào thuộc tính.
 
 ---
 
-### 4.3. CVAT Task Guideline API Bridge (Đọc rule từ CVAT)
-- Khai thác endpoint chính thức của CVAT Server:
-  `GET /api/tasks/{task_id}` $\rightarrow$ trích xuất trường `guide` / `guidelines` (nội dung markdown được cấu hình trên web CVAT).
-- Tích hợp **Regex & Parameter Parser**:
-  - Tự động quét các từ khóa trong văn bản guideline:
-    * `min_size: 25px` $\rightarrow$ gán `min_width = 25`.
-    * `occluded threshold: 30%` $\rightarrow$ gán `overlap_threshold = 0.30`.
-    * `exclude shadow` $\rightarrow$ kích hoạt cờ lọc bóng.
-- Nhờ vậy, quản lý dự án chỉ cần viết mô tả luật trên giao diện CVAT, tool Colab sẽ tự động đọc hiểu và tuân thủ!
+## 5. Các Tính Năng Để Lại Giai Đoạn Sau (Deferred Backlog)
+
+Các tính năng sau đây được **tạm thời gác lại** theo yêu cầu, sẽ triển khai ở Phase 2 khi hệ thống đa hình thái đã hoạt động ổn định:
+
+### 5.1. CVAT Task Guideline API Bridge (Tự động đọc Markdown từ CVAT)
+* *Mục tiêu*: Đọc tự động trường `guidelines` từ API CVAT (`GET /api/tasks/{id}`) bằng Regex Parser để tự động điền các tham số luật.
+* *Lý do để sau*: Người dùng hiện có thể cấu hình trực tiếp và kiểm soát chặt chẽ các tham số luật qua file `configs/task_rules.yaml`.
+
+### 5.2. Vision-Language Model Integration (Florence-2 / Grounded-SAM)
+* *Mục tiêu*: Tích hợp mô hình thị giác ngôn ngữ để gán nhãn theo Prompt chữ (Open-Vocabulary).
+* *Lý do để sau*: Tập trung tối ưu hóa các lớp đối tượng cốt lõi của giao thông và xe tự hành (YOLOv11 + PointPillars) trước.
 
 ---
 
-### 4.4. Vision-Language Model Integration (Florence-2 / Grounded-SAM)
-Dành cho các Task có yêu cầu gán nhãn mở (Open-Vocabulary):
-- Tích hợp model **Microsoft Florence-2-large** (~0.77B tham số, chạy trực tiếp trên GPU Colab T4 ngốn ~2.2GB VRAM).
-- Cho phép nhận text prompt chi tiết từ cấu hình:
-  ```text
-  "A delivery van or courier vehicle with commercial logo on the body"
-  ```
-- Florence-2 tìm chính xác đối tượng $\rightarrow$ Chuyển bounding box sang **SAM 2.1** hoặc module **RLE Converter** để xuất ra đúng chuẩn Native Mask trên CVAT.
-
----
-
-## 5. Đặc Tả File Cấu Hình Quy Tắc (`configs/task_rules.yaml`)
-
-File cấu hình tập trung quy định toàn bộ luật gán nhãn cho dự án V2:
+## 6. Đặc Tả File Cấu Hình Mở Rộng (`configs/task_rules.yaml`)
 
 ```yaml
-version: "2.0"
-project: "Autonomous Driving & City Traffic Inspection"
+version: "2.2"
+project: "Universal Multi-Modal 2D & 3D CVAT Project"
 
 # ==============================================================================
-# CẤU HÌNH QUY TẮC GÁN NHÃN TOÀN CỤC (GLOBAL GUIDELINES)
+# CẤU HÌNH DỮ LIỆU 3D POINT CLOUD (LIDAR)
 # ==============================================================================
-global_rules:
-  # 1. Tự động phát hiện và đánh dấu vật thể bị che khuất
+rules_3d:
+  enabled: true
+  model_backend: "pointpillars"       # pointpillars | centerpoint
+  weights: "weights/pointpillars_kitti.pth"
+  confidence_threshold: 0.35
+  
+  # Phạm vi lọc không gian quanh xe (đơn vị: mét)
+  spatial_range:
+    min_x: -40.0
+    max_x: 40.0
+    min_y: -40.0
+    max_y: 40.0
+    min_z: -2.5
+    max_z: 2.0
+  min_points_per_box: 5
+
+# ==============================================================================
+# CẤU HÌNH DỮ LIỆU 2D & CÁC DẠNG NHÃN MỞ RỘNG
+# ==============================================================================
+rules_2d:
+  # 1. Rút xương dải viền thành Polyline
+  polyline_extractor:
+    enabled: true
+    rdp_epsilon: 2.0                  # Độ mịn của đường gấp khúc (pixel)
+    target_labels: ["lane_divider_white", "curb_boundary"]
+
+  # 2. Fit elip toán học
+  ellipse_fitter:
+    enabled: true
+    target_labels: ["traffic_sign_circle", "cell_nucleus"]
+
+  # 3. Phân loại toàn ảnh (Tag)
+  tag_classifier:
+    enabled: true
+    classes: ["sunny", "rainy", "night", "foggy"]
+
+  # 4. Video tracking
+  video_tracking:
+    enabled: true
+    tracker_type: "bytetrack"         # bytetrack | botsort
+
+  # 5. Quy chuẩn hình học cơ bản
   auto_occlusion:
     enabled: true
-    overlap_threshold: 0.20       # Bị che > 20% diện tích là đánh dấu occluded: true
+    overlap_threshold: 0.20
     target_labels: ["car", "bus", "truck", "bike", "pedestrian"]
 
-  # 2. Tự động phát hiện và đánh dấu vật thể bị cắt cụt ở biên ảnh
   auto_truncation:
     enabled: true
-    edge_margin_px: 2            # Chạm mép ảnh <= 2px là tính truncated
-    attribute_name: "truncated"  # Tên thuộc tính trong CVAT nếu có
+    edge_margin_px: 2
+    attribute_name: "truncated"
 
-  # 3. Lọc bỏ các đối tượng nhiễu / quá xa
   size_filters:
-    min_box_width: 15            # Pixel tối thiểu
+    min_box_width: 15
     min_box_height: 15
-    min_area_px: 250             # Diện tích tối thiểu (width * height)
-    max_aspect_ratio: 8.0        # Tránh các box dẹt bất thường
+    min_area_px: 250
 
-  # 4. Tự động loại trừ đối tượng lồng ghép (Hierarchy)
-  containment_filters:
-    - container: "truck"         # Xe tải chở hàng
-      contained: "car"           # Xe con nằm trên thùng
-      overlap_threshold: 0.80    # Nếu xe con nằm trong xe tải > 80% -> Bỏ qua xe con
-
-# ==============================================================================
-# QUY TẮC THEO TỪNG NHÃN CỤ THỂ (PER-LABEL ATTRIBUTES)
-# ==============================================================================
-label_specific_rules:
-  car:
-    auto_detect_color: true      # Tự trích xuất màu xe và điền vào attribute vehicle_color
-    confidence_threshold: 0.35
-
-  bike:
-    auto_detect_rider: true      # Tự kiểm tra người ngồi trên xe để điền has_rider
-    confidence_threshold: 0.40
-
-  pedestrian:
-    confidence_threshold: 0.45
+  auto_color:
+    enabled: true
+    target_labels: ["car", "truck", "bus"]
+    attribute_name: "vehicle_color"
 ```
 
 ---
 
-## 6. Mã Nguồn Khung Sườn Mẫu (Reference Starter Code)
+## 7. Mã Nguồn Khung Sườn Mẫu (Reference Starter Code)
 
-Dưới đây là mã nguồn lõi đã được thiết kế sẵn cho các thuật toán của **Rule Engine**:
-
-### 6.1. Thuật toán Tính Che khuất & Cắt cụt (`server/ai_engine/rule_engine.py`)
+### 7.1. 3D Point Cloud Ingestion & PointPillars Loader
 ```python
 """
-Rule Engine - Bộ xử lý quy chuẩn không gian và hình học cho V2.
+Module nạp dữ liệu .pcd từ CVAT và suy luận 3D Cuboids.
 """
-from typing import Any, Dict, List, Tuple
+import io
+import urllib.request
+import numpy as np
+
+try:
+    import open3d as o3d
+except ImportError:
+    o3d = None
 
 
-class RuleEngine:
-    def __init__(self, config: Dict[str, Any]):
-        self.config = config.get("global_rules", {})
-        self.occ_cfg = self.config.get("auto_occlusion", {})
-        self.trunc_cfg = self.config.get("auto_truncation", {})
-        self.size_cfg = self.config.get("size_filters", {})
+class PointCloudSyncAdapter:
+    def __init__(self, host: str, token: str, task_id: int):
+        self.host = host.rstrip("/")
+        self.token = token
+        self.task_id = task_id
 
-    def apply_rules(
-        self,
-        shapes: List[Dict[str, Any]],
-        image_shape: Tuple[int, int],  # (height, width)
-    ) -> List[Dict[str, Any]]:
-        h, w = image_shape
-        filtered_shapes = []
+    def download_pcd_frame(self, frame_idx: int) -> np.ndarray:
+        """Tải dữ liệu mây điểm trực tiếp từ CVAT API."""
+        url = f"{self.host}/api/tasks/{self.task_id}/data?type=frame&number={frame_idx}"
+        headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Accept": "application/octet-stream, application/json;q=0.9",
+        }
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req) as resp:
+            data = resp.read()
+            if o3d is not None:
+                pcd = o3d.io.read_point_cloud_from_bytes(data, format="pcd")
+                return np.asarray(pcd.points, dtype=np.float32)
+            return np.frombuffer(data, dtype=np.float32).reshape(-1, 4)
 
-        # 1. Lọc bỏ đối tượng quá nhỏ
-        min_w = self.size_cfg.get("min_box_width", 0)
-        min_h = self.size_cfg.get("min_box_height", 0)
-        min_area = self.size_cfg.get("min_area_px", 0)
+    @staticmethod
+    def format_3d_cuboid(frame_idx: int, label_id: int, box: list) -> dict:
+        """Đóng gói shape chuẩn CVAT 3D Task."""
+        x, y, z, dx, dy, dz, yaw = box
+        return {
+            "frame": frame_idx,
+            "label_id": label_id,
+            "type": "cuboid",
+            "position": [round(float(x), 3), round(float(y), 3), round(float(z), 3)],
+            "dimensions": [round(float(dx), 3), round(float(dy), 3), round(float(dz), 3)],
+            "rotation": [0.0, 0.0, round(float(yaw), 4)],
+            "occluded": False,
+            "attributes": [],
+        }
+```
 
+### 7.2. Bộ Chuyển Đổi Polyline (Skeletonization) & Ellipse
+```python
+"""
+Bộ xử lý hình thái nâng cao: Rút xương Mask thành Polyline và Fit Elip.
+"""
+import cv2
+import numpy as np
+
+
+class ShapeAdapters:
+    @staticmethod
+    def mask_to_polyline(binary_mask: np.ndarray, epsilon: float = 2.0) -> list:
+        """Chuyển mask dải đường thành polyline tim đường bằng Ramer-Douglas-Peucker."""
+        contours, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            return []
+        largest_cnt = max(contours, key=cv2.contourArea)
+        # Rút gọn đỉnh đa giác
+        approx = cv2.approxPolyDP(largest_cnt, epsilon, closed=False)
+        return approx.reshape(-1, 2).flatten().tolist()
+
+    @staticmethod
+    def mask_to_ellipse(binary_mask: np.ndarray) -> dict:
+        """Fit phương trình elip từ mask contour."""
+        contours, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours or len(contours[0]) < 5:
+            return None
+        ellipse = cv2.fitEllipse(contours[0])
+        (cx, cy), (width, height), angle = ellipse
+        return {
+            "type": "ellipse",
+            "cx": round(cx, 1),
+            "cy": round(cy, 1),
+            "rx": round(width / 2.0, 1),
+            "ry": round(height / 2.0, 1),
+            "rotation": round(angle, 1),
+        }
+```
+
+### 7.3. Rule Engine Không gian Cơ bản (Occlusion & Truncation)
+```python
+"""
+Xử lý các quy chuẩn không gian cơ bản: che khuất, cắt cụt, lọc kích thước.
+"""
+class BasicSpatialRuleEngine:
+    @staticmethod
+    def resolve_occlusion_and_truncation(shapes: list, img_w: int, img_h: int) -> list:
+        margin = 2
         for s in shapes:
-            pts = s.get("points", [])
-            if s.get("type") == "rectangle" and len(pts) == 4:
-                x1, y1, x2, y2 = pts
-                bw = x2 - x1
-                bh = y2 - y1
-                if bw < min_w or bh < min_h or (bw * bh) < min_area:
-                    continue  # Bỏ qua box rác ở xa
+            if s.get("type") == "rectangle":
+                x1, y1, x2, y2 = s["points"]
+                # 1. Truncation
+                if x1 <= margin or y1 <= margin or x2 >= (img_w - margin) or y2 >= (img_h - margin):
+                    s["attributes"].append({"name": "truncated", "value": "true"})
 
-            # 2. Kiểm tra cắt cụt ở mép ảnh (Truncation)
-            if self.trunc_cfg.get("enabled", True):
-                margin = self.trunc_cfg.get("edge_margin_px", 2)
-                if s.get("type") == "rectangle" and len(pts) == 4:
-                    x1, y1, x2, y2 = pts
-                    is_truncated = (
-                        x1 <= margin or y1 <= margin or x2 >= (w - margin) or y2 >= (h - margin)
-                    )
-                    if is_truncated:
-                        s["attributes"].append({"name": "truncated", "value": "true"})
-
-            filtered_shapes.append(s)
-
-        # 3. Tính toán Che khuất đa đối tượng (Occlusion)
-        if self.occ_cfg.get("enabled", True):
-            filtered_shapes = self._resolve_occlusions(filtered_shapes)
-
-        return filtered_shapes
-
-    def _resolve_occlusions(self, shapes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        thresh = self.occ_cfg.get("overlap_threshold", 0.20)
+        # 2. Occlusion
         n = len(shapes)
-
         for i in range(n):
             for j in range(i + 1, n):
                 s1, s2 = shapes[i], shapes[j]
-                if s1.get("type") != "rectangle" or s2.get("type") != "rectangle":
-                    continue
-
-                b1, b2 = s1["points"], s2["points"]
-                inter_area = self._box_intersection(b1, b2)
-                if inter_area <= 0:
-                    continue
-
-                area1 = (b1[2] - b1[0]) * (b1[3] - b1[1])
-                area2 = (b2[2] - b2[0]) * (b2[3] - b2[1])
-
-                overlap1 = inter_area / max(1.0, area1)
-                overlap2 = inter_area / max(1.0, area2)
-
-                # Vật thể nào có đáy y2 nằm cao hơn thì coi như đứng sau -> Bị che
-                if overlap1 >= thresh and b1[3] < b2[3]:
-                    s1["occluded"] = True
-                elif overlap2 >= thresh and b2[3] < b1[3]:
-                    s2["occluded"] = True
-
+                if s1.get("type") == "rectangle" and s2.get("type") == "rectangle":
+                    b1, b2 = s1["points"], s2["points"]
+                    iw = max(0.0, min(b1[2], b2[2]) - max(b1[0], b2[0]))
+                    ih = max(0.0, min(b1[3], b2[3]) - max(b1[1], b2[1]))
+                    inter = iw * ih
+                    if inter > 0:
+                        a1 = (b1[2] - b1[0]) * (b1[3] - b1[1])
+                        a2 = (b2[2] - b2[0]) * (b2[3] - b2[1])
+                        if (inter / max(1.0, a1)) >= 0.20 and b1[3] < b2[3]:
+                            s1["occluded"] = True
+                        elif (inter / max(1.0, a2)) >= 0.20 and b2[3] < b1[3]:
+                            s2["occluded"] = True
         return shapes
-
-    @staticmethod
-    def _box_intersection(b1: List[float], b2: List[float]) -> float:
-        xi1 = max(b1[0], b2[0])
-        yi1 = max(b1[1], b2[1])
-        xi2 = min(b1[2], b2[2])
-        yi2 = min(b1[3], b2[3])
-        return max(0.0, xi2 - xi1) * max(0.0, yi2 - yi1)
 ```
 
 ---
 
-## 7. Kế Hoạch Triển Khai Step-by-Step (Sprints & Milestones)
-
-Dự án V2 được chia thành **4 Sprints tập trung**, có thể triển khai tuần tự:
+## 8. Kế Hoạch Triển Khai Step-by-Step (3 Sprints Ngắn Hạn)
 
 ```mermaid
 gantt
-    title LỘ TRÌNH PHÁT TRIỂN LOCATE-ANYTHING V2
+    title LỘ TRÌNH TRIỂN KHAI V2 (ƯU TIÊN 3D VÀ ĐA HÌNH THÁI TRƯỚC)
     dateFormat  YYYY-MM-DD
-    section Sprint 1: Rule Engine
-    Xây dựng RuleEngine lõi (Occlusion, Truncation, Filter) :2026-10-01, 3d
-    Đấu nối RuleEngine vào Colab Sync Worker              :2026-10-04, 2d
-    section Sprint 2: Attribute Resolver
-    Trích xuất màu xe bằng Color Histogram               :2026-10-06, 2d
-    Tự động map thuộc tính vào CVAT Payload              :2026-10-08, 2d
-    section Sprint 3: CVAT Guideline Bridge
-    Endpoint đọc Markdown Guidelines từ CVAT API         :2026-10-10, 2d
-    Regex & Rule Parameter Extractor                     :2026-10-12, 2d
-    section Sprint 4: Open-Vocabulary VLM
-    Tích hợp Florence-2 Engine cho nhãn phức tạp        :2026-10-14, 3d
-    Benchmark kiểm thử toàn diện & Đóng gói V2           :2026-10-17, 2d
+    section Sprint 1: 3D LiDAR Engine
+    Bộ nạp .pcd từ CVAT API & Tích hợp Open3D             :2026-10-01, 2d
+    Tích hợp PointPillars Model & Đóng gói 3D Cuboids    :2026-10-03, 3d
+    section Sprint 2: Mở Rộng Các Dạng Nhãn
+    Tích hợp Polyline (Skeletonization) & Fit Ellipse     :2026-10-06, 2d
+    Tích hợp Tag (SigLIP) & Video Tracking (ByteTrack)    :2026-10-08, 2d
+    section Sprint 3: Rule Engine Cơ Bản
+    Tự động tính Occlusion, Truncation & Lọc kích thước   :2026-10-10, 2d
+    Trích xuất màu xe tự động & Kiểm thử tích hợp Colab   :2026-10-12, 2d
 ```
 
-### 📋 Chi tiết từng Sprint:
-1. **Sprint 1: Xây dựng Rule Engine Không gian & Hình học (P0 - Bắt buộc)**:
-   - Tạo file `server/ai_engine/rule_engine.py`.
-   - Tích hợp tính toán tự động `occluded` khi độ che phủ $> 20\%$.
-   - Tích hợp tính toán `truncated` khi chạm sát mép ảnh.
-   - Lọc sạch sẽ các box kích thước dưới $15\times 15\text{px}$.
-2. **Sprint 2: Tự động Trích xuất & Điền Thuộc tính CVAT (P1 - Giá trị cao)**:
-   - Tạo file `server/ai_engine/attribute_resolver.py`.
-   - Tự động nhận diện màu xe và điền vào `vehicle_color`.
-   - Tự động nhận diện người điều khiển xe máy/xe đạp và điền vào `has_rider`.
-3. **Sprint 3: Cầu nối Trích xuất Guideline Trực tiếp từ CVAT (P1)**:
-   - Đọc API `GET /api/tasks/{id}` để lấy văn bản hướng dẫn gán nhãn của Task.
-   - Cho phép người dùng cấu hình luật trực tiếp trên giao diện CVAT mà không cần sửa file code.
-4. **Sprint 4: Tích hợp Vision-Language Model & Nghiệm thu (P2)**:
-   - Tích hợp Florence-2 phục vụ cho các nhãn yêu cầu ngữ nghĩa mở.
-   - Viết trọn bộ 20+ Unit tests tự động, đo đạc thời gian gán nhãn thực tế trên tập 50 ảnh.
+### 📋 Chi tiết từng Sprint ngắn hạn:
+1. **Sprint 1: 3D LiDAR Point Cloud Engine (P0 - Trọng tâm số 1)**:
+   - Nâng cấp `colab/cvat_auto_sync.py`: Tự động rẽ nhánh khi `dimension == "3d"`.
+   - Viết hàm `download_pcd_frame()` giải mã đám mây điểm.
+   - Viết `server/ai_engine/pointpillars_engine.py` nạp weights nuScenes/KITTI.
+   - Đóng gói và đẩy chuẩn 3D Cuboids lên CVAT REST API.
+2. **Sprint 2: Hoàn thiện Các Dạng Nhãn Còn Lại (P0 - Trọng tâm số 2)**:
+   - Module chuyển Mask thành Polyline tim đường (`line`).
+   - Module fit phương trình elip toán học (`ellipse`).
+   - Module phân loại toàn ảnh bối cảnh (`tag`).
+   - Kích hoạt ByteTrack giữ ID chuyển động trong video (`track`).
+3. **Sprint 3: Rule Engine Không gian & Màu sắc Cơ bản (P1)**:
+   - Tự động đánh dấu `occluded` khi chồng lấn $> 20\%$.
+   - Tự động đánh dấu `truncated` khi chạm mép ảnh.
+   - Lọc bỏ các box rác li ti ở xa chân trời.
+   - Tự động điền màu thân xe vào thuộc tính `vehicle_color`.
+
+*(Phần đọc Guideline từ CVAT Markdown và Open-Vocabulary VLM sẽ được chuyển sang Backlog để làm ở phiên bản sau).*
 
 ---
 
-## 8. Chỉ Số Đo Lường Hiệu Quả (KPIs & Return on Investment)
-
-Sau khi hoàn thành V2, hiệu quả của hệ thống sẽ được lượng hóa bằng các chỉ số sau:
+## 9. Chỉ Số Đo Lường Hiệu Quả (KPIs)
 
 | Chỉ số (Metric) | Phiên bản V1 (Hiện tại) | Kỳ vọng Phiên bản V2 | Tỷ lệ Cải thiện |
 | :--- | :--- | :--- | :--- |
-| **Thời gian Annotator phải can thiệp** | ~45 giây / ảnh (sửa box rác, tick occluded, chọn màu) | $\le 10$ giây / ảnh (chỉ cần lướt mắt kiểm tra) | **Tiết kiệm 75% thời gian** |
-| **Độ chính xác cờ `occluded`** | $0\%$ (V1 mặc định luôn là `false`) | $\ge 92\%$ (Tự động nhận diện chuẩn theo hình học) | **Tăng từ 0% lên 92%** |
-| **Độ chính xác cờ `truncated`** | Phụ thuộc annotator nhớ hay quên | $\ge 98\%$ (Toán học biên ảnh chuẩn xác tuyệt đối) | **Triệt tiêu lỗi quên tick** |
-| **Hộp nhãn rác li ti ở chân trời** | Thi thoảng vẫn bị bắt nhầm ở xa | $0\%$ (Bị bộ lọc kích thước chặn đứng hoàn toàn) | **Sạch rác 100%** |
-| **Chi phí phần cứng thêm vào** | 0 VNĐ (Chạy trên Colab GPU T4 miễn phí) | 0 VNĐ (Rule Engine chạy nhẹ nhàng trên CPU/GPU có sẵn) | **Chi phí vẫn là 0 đồng** |
+| **Gán nhãn 3D Point Cloud LiDAR** | Hoàn toàn thủ công (2-3 phút/hộp) | **Tự động 100%** ($\le 0.05$ giây/scan) | **Nhanh gấp 1.000 lần** |
+| **Độ phủ hình thái nhãn CVAT** | 4 / 9 dạng (chủ yếu Box, Poly, Mask) | **9 / 9 dạng đầy đủ** (Line, Ellipse, Tag, 3D, Track) | **Bao phủ 100% CVAT** |
+| **Gán nhãn chuỗi Video** | Rời rạc từng frame, mất ID | Giữ nguyên `track_id` chuyển động | **Mượt mà 100%** |
+| **Độ chính xác cờ `occluded` / `truncated`**| 0% (Annotator phải tự tick tay) | $\ge 95\%$ (Toán học hình học tự động) | **Triệt tiêu lỗi quên tick** |
+| **Chi phí phần cứng thêm vào** | 0 VNĐ (Colab GPU T4) | 0 VNĐ (PointPillars ~25MB, ngốn ~2GB VRAM T4) | **Chi phí vẫn là 0 đồng** |
 
 ---
 
-> 📌 **Trạng thái**: Tài liệu này đã được lưu vào gốc dự án tại nhánh **`locateV2`** ([`ROADMAP_V2.md`](ROADMAP_V2.md)). Sẵn sàng làm kim chỉ nam để bắt đầu code bất cứ lúc nào!
+> 📌 **Trạng thái**: Tài liệu thiết kế kiến trúc nâng cấp V2 đã được đồng bộ chính thức tại [`ROADMAP_V2.md`](ROADMAP_V2.md). Mọi ưu tiên đã được tập trung trọn vẹn vào **3D Point Cloud & Đa hình thái nhãn**. Sẵn sàng bắt đầu triển khai Sprint 1!
