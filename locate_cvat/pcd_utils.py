@@ -65,8 +65,8 @@ def read_pcd_bytes(data: bytes) -> np.ndarray:
 
 def _parse_pcd_numpy(data: bytes) -> Optional[np.ndarray]:
     """Phân tích cú pháp PCD header và trích xuất điểm dữ liệu thuần NumPy."""
-    # Tìm ranh giới giữa Header và Data (thường kết thúc bằng dòng 'DATA ascii' hoặc 'DATA binary')
-    header_end_match = re.search(rb"(DATA\s+(ascii|binary|binary_compressed)\s*\n)", data)
+    # Tìm ranh giới giữa Header và Data (kết thúc chính xác bằng dòng 'DATA ascii' hoặc 'DATA binary')
+    header_end_match = re.search(rb"(DATA\s+(ascii|binary|binary_compressed)[^\S\r\n]*\r?\n)", data)
     if not header_end_match:
         return None
 
