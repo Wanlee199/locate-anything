@@ -138,10 +138,23 @@ class CVATSyncWorker:
             return []
 
     def _resolve_label_id(self, label_name: str) -> int:
-        """Tìm ID của nhãn trong Task CVAT."""
+        """
+        Tìm ID của nhãn trong Task CVAT.
+        ƯU TIÊN TUYỆT ĐỐI nhãn của Task hiện tại trước, sau đó mới tới registry.
+        """
+        # 1. Khớp chính xác tên nhãn có sẵn trong Task CVAT
         for lbl in self.task_labels:
-            if lbl.get("name", "").lower() == label_name.lower():
+            if lbl.get("name", "").strip().lower() == label_name.strip().lower():
                 return lbl.get("id", 0)
+
+        # 2. Khớp thông minh bỏ qua hậu tố _3d (ví dụ: model báo 'car' nhưng Task đặt 'car_3d')
+        clean_name = label_name.strip().lower().replace("_3d", "").replace("3d_", "")
+        for lbl in self.task_labels:
+            lbl_clean = lbl.get("name", "").strip().lower().replace("_3d", "").replace("3d_", "")
+            if clean_name and (lbl_clean == clean_name or clean_name in lbl_clean):
+                return lbl.get("id", 0)
+
+        # 3. Fallback an toàn: lấy nhãn đầu tiên của Task để tránh lỗi CVAT 400 Bad Request
         if self.task_labels:
             return self.task_labels[0].get("id", 0)
         return 1
@@ -213,8 +226,12 @@ class CVATSyncWorker:
             elif l_type_raw in ["tag", "classification"]:
                 target_type = LabelType.TAG
             else:
-                reg_item = self.registry.get(l_name)
-                target_type = reg_item.type if reg_item else LabelType.BOX
+                # Nếu là Task 3D, ưu tiên gán CUBOID_3D; nếu 2D mới tra cứu fallback sang registry
+                if str(task_info.get("dimension", "2d")).lower() == "3d":
+                    target_type = LabelType.CUBOID_3D
+                else:
+                    reg_item = self.registry.get(l_name)
+                    target_type = reg_item.type if reg_item else LabelType.BOX
 
             target_labels.append(LabelItem(name=l_name, type=target_type))
 
@@ -247,6 +264,8 @@ class CVATSyncWorker:
 
         if is_3d_task:
             print("🧊 [3D LiDAR Pipeline] Kích hoạt suy luận Point Cloud (PointPillars Engine)...")
+            task_label_names = [t.name for t in target_labels]
+            print(f"🎯 Ưu tiên các nhãn có sẵn trên CVAT Task: {task_label_names}")
             for idx, frame_idx in enumerate(frame_indices):
                 sys.stdout.write(f"\r  ⏳ Đang quét LiDAR frame {frame_idx} ({idx + 1}/{total_frames})...")
                 sys.stdout.flush()
@@ -254,36 +273,34 @@ class CVATSyncWorker:
                 # 1. Kéo dữ liệu đám mây điểm .pcd về GPU Colab
                 pcd_points = self.download_pcd_frame(frame_idx)
 
-                # 2. Suy luận hộp 3D cho các nhãn mục tiêu
-                for label_item in target_labels:
-                    results = self.dispatcher.dispatch(
-                        image_shape=(0, 0),
-                        label_name=label_item.name,
-                        target_type=LabelType.CUBOID_3D,
-                        point_cloud=pcd_points,
-                    )
-                    for res in results:
-                        detected_label = res.get("label", label_item.name)
-                        pos = res.get("position", res.get("center", [0.0, 0.0, 0.0]))
-                        dim = res.get("dimensions", [1.0, 1.0, 1.0])
-                        rot = res.get("rotation", [0.0, 0.0, 0.0])
-                        shape_record = {
-                            "frame": frame_idx,
-                            "label_id": self._resolve_label_id(detected_label),
-                            "type": "cuboid",
-                            "position": pos,
-                            "dimensions": dim,
-                            "rotation": rot,
-                            "points": [
-                                pos[0], pos[1], pos[2],
-                                dim[0], dim[1], dim[2],
-                                rot[0], rot[1], rot[2],
-                            ],
-                            "occluded": False,
-                            "z_order": 0,
-                            "attributes": [],
-                        }
-                        all_shapes.append(shape_record)
+                # 2. Suy luận 3D một lượt cho frame, ưu tiên phân loại theo nhãn Task
+                results = self.dispatcher.dispatch(
+                    image_shape=(0, 0),
+                    label_name=target_labels[0].name if target_labels else "car",
+                    target_type=LabelType.CUBOID_3D,
+                    point_cloud=pcd_points,
+                    available_labels=task_label_names,
+                )
+                for res in results:
+                    detected_label = res.get("label", target_labels[0].name if target_labels else "car")
+                    pos = res.get("position", res.get("center", [0.0, 0.0, 0.0]))
+                    dim = res.get("dimensions", [1.0, 1.0, 1.0])
+                    rot = res.get("rotation", [0.0, 0.0, 0.0])
+                    shape_record = {
+                        "frame": frame_idx,
+                        "label_id": self._resolve_label_id(detected_label),
+                        "type": "cuboid",
+                        "rotation": 0.0,
+                        "points": [
+                            float(pos[0]), float(pos[1]), float(pos[2]),
+                            float(dim[0]), float(dim[1]), float(dim[2]),
+                            float(rot[0]), float(rot[1]), float(rot[2]),
+                        ],
+                        "occluded": False,
+                        "z_order": 0,
+                        "attributes": [],
+                    }
+                    all_shapes.append(shape_record)
 
         else:
             print("🖼️ [2D Vision Pipeline] Kích hoạt suy luận Ảnh RGB (YOLO / SAM2 / Pose)...")

@@ -147,13 +147,11 @@ class Test3DPipelineVerification(unittest.TestCase):
                 "frame": 0,
                 "label_id": 1,
                 "type": "cuboid",
-                "position": pos,
-                "dimensions": dim,
-                "rotation": rot,
+                "rotation": 0.0,
                 "points": [
-                    pos[0], pos[1], pos[2],
-                    dim[0], dim[1], dim[2],
-                    rot[0], rot[1], rot[2],
+                    float(pos[0]), float(pos[1]), float(pos[2]),
+                    float(dim[0]), float(dim[1]), float(dim[2]),
+                    float(rot[0]), float(rot[1]), float(rot[2]),
                 ],
                 "occluded": False,
                 "z_order": 0,
@@ -172,14 +170,13 @@ class Test3DPipelineVerification(unittest.TestCase):
         json_str = json.dumps(payload, indent=2)
         self.assertTrue(len(json_str) > 0)
 
-        # Kiểm tra từng shape chứa đầy đủ 8 trường bắt buộc của CVAT
+        # Kiểm tra từng shape chứa đầy đủ các trường chuẩn của CVAT REST API
         for s in payload["shapes"]:
             self.assertEqual(s["type"], "cuboid")
             self.assertIn("points", s)
             self.assertEqual(len(s["points"]), 9)
-            self.assertIn("position", s)
-            self.assertIn("dimensions", s)
             self.assertIn("rotation", s)
+            self.assertIsInstance(s["rotation"], float)
             self.assertIn("frame", s)
             self.assertIn("label_id", s)
 

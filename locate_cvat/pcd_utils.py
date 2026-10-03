@@ -9,7 +9,8 @@ from __future__ import annotations
 import io
 import re
 import struct
-from typing import Optional, Tuple
+from pathlib import Path
+from typing import Optional, Tuple, Union
 import numpy as np
 
 try:
@@ -51,7 +52,15 @@ def read_pcd_bytes(data: bytes) -> np.ndarray:
         except Exception:
             pass
 
-    # 3. Fallback: Nếu là file KITTI .bin (chuỗi float32 4 cột liên tục)
+    # 3. Fallback: Nếu là file nuScenes .bin (chuỗi float32 5 cột: x, y, z, intensity, ring_index)
+    if len(data) % 20 == 0:
+        try:
+            pts5 = np.frombuffer(data, dtype=np.float32).reshape(-1, 5)
+            return pts5[:, :4].astype(np.float32)  # Giữ lại [x, y, z, intensity]
+        except Exception:
+            pass
+
+    # 4. Fallback: Nếu là file KITTI .bin (chuỗi float32 4 cột liên tục)
     if len(data) % 16 == 0:
         try:
             pts = np.frombuffer(data, dtype=np.float32).reshape(-1, 4)
@@ -157,3 +166,39 @@ def create_sample_pcd_ascii(points: np.ndarray) -> bytes:
     )
     lines = [f"{pt[0]:.3f} {pt[1]:.3f} {pt[2]:.3f} {pt[3]:.1f}" for pt in points]
     return (header + "\n".join(lines) + "\n").encode("ascii")
+
+
+def create_pcd_binary(points: np.ndarray) -> bytes:
+    """Tạo chuỗi byte PCD BINARY (Float32 uncompressed) tối ưu dung lượng cho CVAT."""
+    num_pts = len(points)
+    if points.shape[1] == 3:
+        intensity = np.zeros((num_pts, 1), dtype=np.float32)
+        pts = np.hstack([points, intensity]).astype(np.float32)
+    else:
+        pts = points[:, :4].astype(np.float32)
+
+    header = (
+        f"# .PCD v0.7 - Point Cloud Data\n"
+        f"VERSION 0.7\n"
+        f"FIELDS x y z intensity\n"
+        f"SIZE 4 4 4 4\n"
+        f"TYPE F F F F\n"
+        f"COUNT 1 1 1 1\n"
+        f"WIDTH {num_pts}\n"
+        f"HEIGHT 1\n"
+        f"VIEWPOINT 0 0 0 1 0 0 0\n"
+        f"POINTS {num_pts}\n"
+        f"DATA binary\n"
+    ).encode("ascii")
+
+    return header + pts.tobytes()
+
+
+def save_pcd(points: np.ndarray, filepath: Union[str, Path], binary: bool = True) -> Path:
+    """Lưu mảng điểm NumPy thành file .pcd trên ổ đĩa để kéo thả vào CVAT Task."""
+    path = Path(filepath)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = create_pcd_binary(points) if binary else create_sample_pcd_ascii(points)
+    with open(path, "wb") as f:
+        f.write(payload)
+    return path

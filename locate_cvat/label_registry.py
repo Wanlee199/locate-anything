@@ -199,11 +199,12 @@ class LabelRegistry:
         self._validate_all()
 
     def _validate_all(self) -> None:
-        seen_names = set()
+        seen_keys = set()
         for label in self.labels:
-            if label.name in seen_names:
-                raise ValueError(f"Trùng lặp tên nhãn trong danh mục: '{label.name}'")
-            seen_names.add(label.name)
+            key = (label.name.lower(), label.type)
+            if key in seen_keys:
+                raise ValueError(f"Trùng lặp nhãn cùng tên và loại trong danh mục: '{label.name}' ({label.type.value})")
+            seen_keys.add(key)
             label.validate()
 
     @classmethod
@@ -473,9 +474,20 @@ class LabelRegistry:
         """
         return [lbl.to_cvat_spec() for lbl in self.labels]
 
-    def get(self, name: str) -> Optional[LabelItem]:
+    def get(self, name: str, label_type: Optional[Union[str, LabelType]] = None) -> Optional[LabelItem]:
+        target_type = None
+        if label_type is not None:
+            target_type = LabelType.from_str(label_type) if isinstance(label_type, str) else label_type
+
+        # 1. Ưu tiên khớp cả tên và loại nhãn nếu có truyền label_type
+        if target_type is not None:
+            for lbl in self.labels:
+                if lbl.name.lower() == name.lower() and lbl.type == target_type:
+                    return lbl
+
+        # 2. Khớp theo tên
         for lbl in self.labels:
-            if lbl.name == name:
+            if lbl.name.lower() == name.lower():
                 return lbl
         return None
 

@@ -44,6 +44,7 @@ class ModelDispatcher:
         bbox: Optional[List[float]] = None,
         target_type: Optional[Union[str, LabelType]] = None,
         point_cloud: Optional[Any] = None,
+        available_labels: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Định tuyến yêu cầu gán nhãn tới engine tương ứng.
@@ -161,7 +162,11 @@ class ModelDispatcher:
         # 5. Định tuyến 3D Cuboid (Point Cloud LiDAR)
         elif label_type == LabelType.CUBOID_3D:
             if point_cloud is not None and len(point_cloud) > 0:
-                preds = self.pointpillars_engine.predict(point_cloud, target_label=label_name)
+                preds = self.pointpillars_engine.predict(
+                    point_cloud,
+                    target_label=label_name,
+                    available_labels=available_labels,
+                )
                 if preds:
                     for p in preds:
                         p["center"] = p["position"]  # Tương thích ngược

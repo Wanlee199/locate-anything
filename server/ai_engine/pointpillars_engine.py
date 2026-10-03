@@ -67,35 +67,33 @@ class PointPillarsEngine:
     def predict(
         self,
         points: np.ndarray,
-        target_label: str = "truck_3d",
+        target_label: str = "car",
+        available_labels: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Dự đoán các hộp bao 3D Cuboids từ mảng điểm LiDAR (N, 3) hoặc (N, 4).
-        Trả về danh sách các cuboid tương thích chuẩn CVAT REST API:
-        [
-          {
-            "type": "cuboid",
-            "label": "truck_3d",
-            "position": [x, y, z],
-            "dimensions": [dx, dy, dz],
-            "rotation": [0.0, 0.0, yaw],
-            "confidence": 0.89
-          }
-        ]
+        Ưu tiên tối đa danh sách nhãn đang cấu hình trong Task CVAT (available_labels).
         """
         filtered_points = self.filter_points_in_range(points)
         if len(filtered_points) < 10:
             return []
 
         # Nếu model PyTorch chưa sẵn sàng: Sử dụng thuật toán phân cụm Voxel Cluster 3D
-        return self._predict_heuristic_clusters(filtered_points, target_label)
+        return self._predict_heuristic_clusters(
+            filtered_points,
+            target_label=target_label,
+            available_labels=available_labels,
+        )
 
     def _predict_heuristic_clusters(
-        self, points: np.ndarray, target_label: str
+        self,
+        points: np.ndarray,
+        target_label: str = "car",
+        available_labels: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Thuật toán gom cụm hình học 3D (Voxel Grid Clustering) tốc độ cao
-        nhận diện và bao bọc các vật thể nổi trong không gian.
+        nhận diện và bao bọc các vật thể nổi trong không gian, ưu tiên nhãn Task CVAT.
         """
         # 1. Loại bỏ mặt đất (Ground Plane Removal) bằng ngưỡng cao độ Z
         ground_z_thresh = -1.6
@@ -172,10 +170,48 @@ class PointPillarsEngine:
                 except Exception:
                     yaw = 0.0
 
+                # Phân loại sơ bộ kích thước theo chuẩn nuScenes
+                detected_class = "car"
+                if dx > 6.0 or dz > 2.5:
+                    detected_class = "truck"
+                elif dx < 1.3 and dy < 1.3 and dz < 2.2:
+                    detected_class = "pedestrian"
+                elif (dx < 2.4 and dy < 1.3) and dz < 1.8:
+                    detected_class = "motorcycle"
+                elif dz < 0.9 and (dx < 1.3 or dy < 1.3):
+                    detected_class = "barrier"
+
+                # ƯU TIÊN 1: Khớp với nhãn đang có trong Task của CVAT (nếu có available_labels)
+                final_label = target_label
+                if available_labels:
+                    matched = None
+                    # 1.1 Khớp chính xác class
+                    for alb in available_labels:
+                        if alb.strip().lower() == detected_class.lower():
+                            matched = alb
+                            break
+                    # 1.2 Khớp có đuôi _3d hoặc tiền tố 3d_ (ví dụ car_3d, truck_3d)
+                    if not matched:
+                        for alb in available_labels:
+                            alb_clean = alb.strip().lower().replace("_3d", "").replace("3d_", "")
+                            if alb_clean == detected_class.lower():
+                                matched = alb
+                                break
+                    # 1.3 Nếu target_label có sẵn trong Task
+                    if not matched and any(alb.strip().lower() == target_label.strip().lower() for alb in available_labels):
+                        matched = target_label
+                    # 1.4 Fallback về nhãn hợp lệ đầu tiên của Task
+                    if not matched and available_labels:
+                        matched = available_labels[0]
+
+                    final_label = matched or target_label
+                else:
+                    final_label = target_label
+
                 results.append(
                     {
                         "type": "cuboid",
-                        "label": target_label,
+                        "label": final_label,
                         "position": [round(cx, 3), round(cy, 3), round(cz, 3)],
                         "dimensions": [round(dx, 3), round(dy, 3), round(dz, 3)],
                         "rotation": [0.0, 0.0, round(yaw, 4)],
