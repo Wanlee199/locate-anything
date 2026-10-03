@@ -263,7 +263,14 @@ class CVATSyncWorker:
         total_frames = len(frame_indices)
 
         if is_3d_task:
-            print("🧊 [3D LiDAR Pipeline] Kích hoạt suy luận Point Cloud (PointPillars Engine)...")
+            pp_engine = getattr(self.dispatcher, "pointpillars_engine", None)
+            is_dl = pp_engine is not None and getattr(pp_engine, "pcdet_model", None) is not None
+            if is_dl:
+                mode_status = "🧠 Mô hình AI: OpenPCDet Deep Learning (nuScenes Pretrained Multi-Head 10 Classes)"
+            else:
+                mode_status = "⚠️ Mô hình AI: Fallback Voxel Clustering (Gợi ý: Chạy '!python tools/setup_3d_model.py --install' để kích hoạt nuScenes Deep Learning)"
+            print(f"🧊 [3D LiDAR Pipeline] Kích hoạt suy luận nuScenes Point Cloud (PointPillars Engine)...")
+            print(f"   {mode_status}")
             task_label_names = [t.name for t in target_labels]
             print(f"🎯 Ưu tiên các nhãn có sẵn trên CVAT Task: {task_label_names}")
             for idx, frame_idx in enumerate(frame_indices):
