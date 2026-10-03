@@ -29,11 +29,18 @@ def read_pcd_bytes(data: bytes) -> np.ndarray:
     if not data or len(data) == 0:
         return np.zeros((0, 4), dtype=np.float32)
 
-    # 1. Thử giải mã qua Open3D nếu thư viện sẵn sàng
+    # 1. Ưu tiên bộ giải mã thuần NumPy đọc trực tiếp PCD Header (Tốc độ cao, triệt tiêu warning in-memory của Open3D)
+    try:
+        points = _parse_pcd_numpy(data)
+        if points is not None and len(points) > 0:
+            return points
+    except Exception:
+        pass
+
+    # 2. Dự phòng: Thử giải mã qua Open3D (cho định dạng khác như .ply)
     if o3d is not None:
         try:
-            # Tạo temporary buffer hoặc memory stream cho Open3D
-            pcd = o3d.io.read_point_cloud_from_bytes(data, format="pcd")
+            pcd = o3d.io.read_point_cloud_from_bytes(data)
             if len(pcd.points) > 0:
                 pts = np.asarray(pcd.points, dtype=np.float32)
                 # Ghép thêm trường intensity mặc định nếu chỉ có xyz
@@ -42,15 +49,7 @@ def read_pcd_bytes(data: bytes) -> np.ndarray:
                     return np.hstack([pts, intensity])
                 return pts
         except Exception:
-            pass  # Chuyển tiếp sang bộ giải mã thuần NumPy
-
-    # 2. Bộ giải mã thuần NumPy đọc trực tiếp PCD Header
-    try:
-        points = _parse_pcd_numpy(data)
-        if points is not None and len(points) > 0:
-            return points
-    except Exception:
-        pass
+            pass
 
     # 3. Fallback: Nếu là file KITTI .bin (chuỗi float32 4 cột liên tục)
     if len(data) % 16 == 0:
