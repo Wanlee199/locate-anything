@@ -150,8 +150,9 @@ class Test3DPipelineVerification(unittest.TestCase):
                 "rotation": 0.0,
                 "points": [
                     float(pos[0]), float(pos[1]), float(pos[2]),
-                    float(dim[0]), float(dim[1]), float(dim[2]),
                     float(rot[0]), float(rot[1]), float(rot[2]),
+                    float(dim[0]), float(dim[1]), float(dim[2]),
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                 ],
                 "occluded": False,
                 "z_order": 0,
@@ -174,7 +175,7 @@ class Test3DPipelineVerification(unittest.TestCase):
         for s in payload["shapes"]:
             self.assertEqual(s["type"], "cuboid")
             self.assertIn("points", s)
-            self.assertEqual(len(s["points"]), 9)
+            self.assertEqual(len(s["points"]), 16)
             self.assertIn("rotation", s)
             self.assertIsInstance(s["rotation"], float)
             self.assertIn("frame", s)

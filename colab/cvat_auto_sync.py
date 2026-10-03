@@ -293,8 +293,9 @@ class CVATSyncWorker:
                         "rotation": 0.0,
                         "points": [
                             float(pos[0]), float(pos[1]), float(pos[2]),
-                            float(dim[0]), float(dim[1]), float(dim[2]),
                             float(rot[0]), float(rot[1]), float(rot[2]),
+                            float(dim[0]), float(dim[1]), float(dim[2]),
+                            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                         ],
                         "occluded": False,
                         "z_order": 0,
