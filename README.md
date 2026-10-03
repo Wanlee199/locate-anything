@@ -1,6 +1,9 @@
 # 🎯 CVAT Universal Multi-Modal Labeling Booster & Cloud/VPS AI Engine
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Wanlee199/locate-anything/blob/main/colab/launch_colab.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Wanlee199/locate-anything/blob/locateV2/colab/launch_colab.ipynb)
+[![Documentation](https://img.shields.io/badge/Tài%20Liệu-Tổng%20Hợp%20Toàn%20Diện%20(V2)-blue.svg)](docs/tai_lieu_tong_hop.md)
+
+> 📘 **Tài Liệu Tổng Hợp Toàn Diện V2**: Đọc cẩm nang chi tiết từ A-Z tại [`docs/tai_lieu_tong_hop.md`](docs/tai_lieu_tong_hop.md).
 
 Hệ thống toàn diện giải quyết triệt để 2 vấn đề lớn nhất khi sử dụng CVAT:
 1. **Máy tính cá nhân bị giật lag, ngốn RAM/CPU** khi Canvas phải vẽ hàng trăm nhãn/polygon phức tạp.
