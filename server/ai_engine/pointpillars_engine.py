@@ -12,41 +12,107 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 
+NUSCENES_CLASSES = [
+    "car", "truck", "construction_vehicle", "bus", "trailer",
+    "barrier", "motorcycle", "bicycle", "pedestrian", "traffic_cone"
+]
+
+VEHICLE_CLASSES = {"car", "truck", "construction_vehicle", "bus", "trailer"}
+
+
 class PointPillarsEngine:
     def __init__(
         self,
         weights_path: Optional[str] = None,
-        confidence_threshold: float = 0.35,
+        cfg_path: Optional[str] = None,
+        confidence_threshold: float = 0.25,
         spatial_range: Optional[Dict[str, float]] = None,
+        auto_download: bool = True,
     ):
-        self.weights_path = weights_path or "weights/pointpillars_kitti.pth"
+        self.weights_path = weights_path or "weights/cbgs_pp_multihead_nds58.pth"
+        self.cfg_path = cfg_path or "configs/pcdet/cbgs_pp_multihead.yaml"
         self.conf_thresh = confidence_threshold
+        self.auto_download = auto_download
         self.spatial_range = spatial_range or {
-            "min_x": -40.0,
-            "max_x": 40.0,
-            "min_y": -40.0,
-            "max_y": 40.0,
-            "min_z": -2.5,
-            "max_z": 2.0,
+            "min_x": -51.2,
+            "max_x": 51.2,
+            "min_y": -51.2,
+            "max_y": 51.2,
+            "min_z": -5.0,
+            "max_z": 3.0,
         }
-        self.model = None
+        self.pcdet_model = None
+        self.class_names = NUSCENES_CLASSES
+        self.dataset_template = None
         self._load_model()
 
-    def _load_model(self):
-        """Khởi tạo mô hình PointPillars nếu trọng số và thư viện sẵn có."""
+    def _ensure_weights(self) -> bool:
+        """Kiểm tra và tự động tải weights nuScenes nếu thiếu."""
         p = Path(self.weights_path)
-        if p.exists():
+        if p.exists() and p.stat().st_size > 20 * 1024 * 1024:
+            return True
+
+        if not self.auto_download:
+            return False
+
+        print(f"📥 [PointPillars] Pretrained weights chưa có, bắt đầu tải về: {self.weights_path}...")
+        try:
+            import urllib.request
+            url = "https://drive.google.com/uc?id=1p-501mTWsq0G9RzroTWSXreIMyTUUpBM&export=download"
+            p.parent.mkdir(parents=True, exist_ok=True)
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req) as resp, open(p, "wb") as f:
+                block_size = 1024 * 1024
+                while True:
+                    buf = resp.read(block_size)
+                    if not buf:
+                        break
+                    f.write(buf)
+            print(f"✅ [PointPillars] Tải thành công weights: {p.resolve()} ({p.stat().st_size / (1024*1024):.1f} MB)")
+            return True
+        except Exception as e:
+            print(f"⚠️ [PointPillars] Không thể tự động tải weights: {e}")
+            return False
+
+    def _load_model(self):
+        """Khởi tạo mô hình OpenPCDet nuScenes PointPillars nếu có GPU và thư viện."""
+        self._ensure_weights()
+        p = Path(self.weights_path)
+        cfg_p = Path(self.cfg_path)
+
+        if p.exists() and cfg_p.exists():
             try:
-                # Nếu môi trường có pcdet
                 import torch
-                # Placeholder load OpenPCDet if installed
-                print(f"📦 [PointPillars] Đã tìm thấy weights: {p.resolve()}")
-                self.model = "openpcdet_active"
+                from pcdet.config import cfg, cfg_from_yaml_file
+                from pcdet.models import build_network
+                from pcdet.datasets import DatasetTemplate
+
+                cfg_from_yaml_file(str(cfg_p), cfg)
+                self.class_names = cfg.CLASS_NAMES
+
+                class CustomDatasetTemplate(DatasetTemplate):
+                    pass
+
+                self.dataset_template = CustomDatasetTemplate(
+                    dataset_cfg=cfg.DATA_CONFIG,
+                    class_names=self.class_names,
+                    training=False,
+                    root_path=Path("."),
+                )
+
+                model = build_network(model_cfg=cfg.MODEL, num_class=len(self.class_names), dataset=self.dataset_template)
+                model.load_params_from_file(filename=str(p), logger=None, to_cpu=not torch.cuda.is_available())
+                if torch.cuda.is_available():
+                    model.cuda()
+                model.eval()
+                self.pcdet_model = model
+                device_str = "CUDA GPU" if torch.cuda.is_available() else "CPU"
+                print(f"🚀 [PointPillars] Nạp thành công mô hình Deep Learning OpenPCDet trên {device_str} ({len(self.class_names)} nhãn nuScenes)!")
             except Exception as e:
-                print(f"⚠️ [PointPillars] Không thể nạp weights PyTorch: {e}")
-                self.model = None
+                print(f"⚠️ [PointPillars] Không thể nạp OpenPCDet ({e}), kích hoạt chế độ dự phòng Voxel Clustering.")
+                self.pcdet_model = None
         else:
-            self.model = None
+            self.pcdet_model = None
 
     def filter_points_in_range(self, points: np.ndarray) -> np.ndarray:
         """Lọc bỏ các điểm ngoài phạm vi quét hiệu dụng của LiDAR."""
@@ -64,6 +130,36 @@ class PointPillarsEngine:
         )
         return points[mask]
 
+    def _match_label(self, raw_class: str, available_labels: Optional[List[str]], target_label: str) -> str:
+        """Ánh xạ nhãn dự đoán của model sang nhãn đang có trên CVAT Task."""
+        if not available_labels:
+            return raw_class
+
+        raw_lower = raw_class.strip().lower()
+
+        # 1. Khớp chính xác class
+        for alb in available_labels:
+            if alb.strip().lower() == raw_lower:
+                return alb
+
+        # 2. Nhóm phương tiện: nếu Task có nhãn "vehicles" và model phát hiện xe
+        if raw_lower in VEHICLE_CLASSES:
+            for alb in available_labels:
+                if alb.strip().lower() in ["vehicles", "vehicle", "xe"]:
+                    return alb
+
+        # 3. Khớp tiền tố/hậu tố _3d (car_3d, 3d_car)
+        for alb in available_labels:
+            alb_clean = alb.strip().lower().replace("_3d", "").replace("3d_", "")
+            if alb_clean == raw_lower or raw_lower in alb_clean:
+                return alb
+
+        # 4. Fallback về target_label hoặc nhãn đầu tiên của Task
+        for alb in available_labels:
+            if alb.strip().lower() == target_label.strip().lower():
+                return alb
+        return available_labels[0]
+
     def predict(
         self,
         points: np.ndarray,
@@ -71,19 +167,86 @@ class PointPillarsEngine:
         available_labels: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Dự đoán các hộp bao 3D Cuboids từ mảng điểm LiDAR (N, 3) hoặc (N, 4).
-        Ưu tiên tối đa danh sách nhãn đang cấu hình trong Task CVAT (available_labels).
+        Dự đoán các hộp bao 3D Cuboids từ mảng điểm LiDAR (N, 3) hoặc (N, 4/5).
+        Nếu OpenPCDet sẵn sàng -> Chạy mô hình Deep Learning thật.
+        Nếu chưa sẵn sàng -> Chạy phân cụm Voxel Cluster dự phòng.
         """
         filtered_points = self.filter_points_in_range(points)
         if len(filtered_points) < 10:
             return []
 
-        # Nếu model PyTorch chưa sẵn sàng: Sử dụng thuật toán phân cụm Voxel Cluster 3D
+        # 1. Chạy mô hình Deep Learning OpenPCDet thật nếu có
+        if self.pcdet_model is not None:
+            try:
+                return self._predict_openpcdet(filtered_points, available_labels=available_labels, target_label=target_label)
+            except Exception as e:
+                print(f"⚠️ [PointPillars] Lỗi suy luận Deep Learning: {e}, chuyển sang chế độ dự phòng.")
+
+        # 2. Dự phòng hình học
         return self._predict_heuristic_clusters(
             filtered_points,
             target_label=target_label,
             available_labels=available_labels,
         )
+
+    def _predict_openpcdet(
+        self,
+        points: np.ndarray,
+        available_labels: Optional[List[str]] = None,
+        target_label: str = "car",
+    ) -> List[Dict[str, Any]]:
+        """Suy luận bằng mô hình OpenPCDet PointPillars nuScenes."""
+        import torch
+        from pcdet.models import load_data_to_gpu
+
+        # Đảm bảo mảng điểm có ít nhất 4 hoặc 5 chiều [x, y, z, intensity, timestamp]
+        pts = points.astype(np.float32)
+        if pts.shape[1] == 3:
+            zeros = np.zeros((pts.shape[0], 2), dtype=np.float32)
+            pts = np.hstack([pts, zeros])
+        elif pts.shape[1] == 4:
+            zeros = np.zeros((pts.shape[0], 1), dtype=np.float32)
+            pts = np.hstack([pts, zeros])
+
+        input_dict = {"points": pts, "frame_id": 0}
+        data_dict = self.dataset_template.prepare_data(data_dict=input_dict)
+        batch_dict = self.dataset_template.collate_batch([data_dict])
+        if torch.cuda.is_available():
+            load_data_to_gpu(batch_dict)
+
+        with torch.no_grad():
+            pred_dicts, _ = self.pcdet_model.forward(batch_dict)
+
+        pred_boxes = pred_dicts[0]["pred_boxes"].cpu().numpy()
+        pred_scores = pred_dicts[0]["pred_scores"].cpu().numpy()
+        pred_labels = pred_dicts[0]["pred_labels"].cpu().numpy()
+
+        results = []
+        for i in range(len(pred_boxes)):
+            score = float(pred_scores[i])
+            if score < self.conf_thresh:
+                continue
+
+            box = pred_boxes[i]
+            # OpenPCDet box: [x, y, z, dx, dy, dz, heading/yaw]
+            cx, cy, cz = float(box[0]), float(box[1]), float(box[2])
+            dx, dy, dz = float(box[3]), float(box[4]), float(box[5])
+            yaw = float(box[6]) if len(box) > 6 else 0.0
+
+            class_idx = int(pred_labels[i]) - 1
+            raw_class = self.class_names[class_idx] if 0 <= class_idx < len(self.class_names) else "car"
+            final_label = self._match_label(raw_class, available_labels, target_label)
+
+            results.append({
+                "type": "cuboid",
+                "label": final_label,
+                "position": [round(cx, 3), round(cy, 3), round(cz, 3)],
+                "dimensions": [round(dx, 3), round(dy, 3), round(dz, 3)],
+                "rotation": [0.0, 0.0, round(yaw, 4)],
+                "confidence": round(score, 3),
+            })
+
+        return results
 
     def _predict_heuristic_clusters(
         self,
