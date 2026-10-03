@@ -1,0 +1,27 @@
+# ==============================================================================
+# Locate-Anything: Core & AI Dependencies
+# ==============================================================================
+
+# Core & CVAT Integration
+pyyaml>=6.0
+pillow>=9.5.0
+numpy>=1.23.5,<2.0.0
+requests>=2.28.0
+urllib3>=1.26.0
+
+# 2D Computer Vision & Deep Learning (YOLO11, SAM 2.1, Pose)
+torch>=2.0.0
+torchvision>=0.15.0
+ultralytics>=8.3.0
+opencv-python>=4.7.0
+
+# 3D Point Cloud & LiDAR Processing
+open3d>=0.17.0
+
+# Server & API (FastAPI backend)
+fastapi>=0.100.0
+uvicorn>=0.22.0
+httpx>=0.24.0
+
+# Optional 3D Deep Learning (Uncomment or install via tools/setup_3d_model.py)
+# spconv-cu120>=2.3.6

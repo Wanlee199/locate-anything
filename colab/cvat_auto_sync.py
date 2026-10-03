@@ -39,18 +39,25 @@ class CVATSyncWorker:
         task_id: Optional[int] = None,
         job_id: Optional[int] = None,
         registry_path: str = "configs/labels_config.yaml",
+        conf_thresh: float = 0.25,
+        clear_old: bool = True,
+        max_frames: Optional[int] = None,
     ):
         self.host = host.rstrip("/")
         self.token = token
-        self.task_id = task_id
-        self.job_id = job_id
+        # Xử lý trường hợp người dùng nhập 0 hoặc chuỗi rỗng
+        self.task_id = task_id if (task_id is not None and task_id > 0) else None
+        self.job_id = job_id if (job_id is not None and job_id > 0) else None
+        self.conf_thresh = conf_thresh
+        self.clear_old = clear_old
+        self.max_frames = max_frames
 
         # Load danh mục nhãn và AI Engine
         print(f"📦 Đang tải cấu hình nhãn từ: {registry_path}")
         self.registry = LabelRegistry.load_from_yaml(registry_path)
 
-        print("🧠 Đang khởi tạo Model Dispatcher (SAM 2.1 + YOLO + Pose + 3D)...")
-        self.dispatcher = ModelDispatcher(registry=self.registry)
+        print(f"🧠 Đang khởi tạo Model Dispatcher (SAM 2.1 + YOLO + Pose + 3D) [conf={self.conf_thresh}]...")
+        self.dispatcher = ModelDispatcher(registry=self.registry, conf_thresh=self.conf_thresh)
         self.dispatcher.load_engines()
 
     def _headers(self):
@@ -59,31 +66,52 @@ class CVATSyncWorker:
             "Accept": "application/vnd.cvat+json, application/json;q=0.9",
         }
 
+    def _safe_urlopen(self, req: urllib.request.Request, desc: str = ""):
+        """Thực hiện HTTP request với thông báo lỗi thân thiện bằng tiếng Việt."""
+        try:
+            return urllib.request.urlopen(req)
+        except urllib.error.HTTPError as e:
+            if e.code in (401, 403):
+                raise RuntimeError(
+                    f"❌ Lỗi xác thực CVAT (HTTP {e.code}): Token không hợp lệ hoặc đã hết hạn!\n"
+                    f"💡 Hãy vào CVAT Web -> Profile (góc trên bên phải) -> API Tokens -> Tạo Token mới và dán vào."
+                ) from e
+            elif e.code == 404:
+                raise RuntimeError(
+                    f"❌ Không tìm thấy tài nguyên trên CVAT (HTTP 404): {desc}\n"
+                    f"💡 Hãy kiểm tra lại Task ID hoặc Job ID trên CVAT."
+                ) from e
+            else:
+                err_msg = e.read().decode("utf-8", errors="ignore")
+                raise RuntimeError(f"❌ CVAT từ chối yêu cầu (HTTP {e.code} cho {desc}): {err_msg}") from e
+        except urllib.error.URLError as e:
+            raise RuntimeError(
+                f"❌ Không thể kết nối tới máy chủ CVAT tại {self.host}!\n"
+                f"   Chi tiết: {e.reason}\n"
+                f"💡 Hãy kiểm tra:\n"
+                f"   1. Cloudflare Tunnel hoặc máy chủ CVAT có đang hoạt động không?\n"
+                f"   2. Địa chỉ host '{self.host}' có chính xác không?"
+            ) from e
+
     def get_job_info(self, job_id: int) -> dict:
         """Lấy thông tin chi tiết của 1 Job cụ thể (start_frame, stop_frame, task_id)."""
         url = f"{self.host}/api/jobs/{job_id}"
         req = urllib.request.Request(url, headers=self._headers())
-        try:
-            with urllib.request.urlopen(req) as resp:
-                return json.loads(resp.read().decode("utf-8"))
-        except urllib.error.HTTPError as e:
-            raise RuntimeError(f"Không thể kết nối Job {job_id} trên {self.host}: {e}")
+        with self._safe_urlopen(req, f"Job #{job_id}") as resp:
+            return json.loads(resp.read().decode("utf-8"))
 
     def get_task_info(self) -> dict:
         """Lấy thông tin task và số lượng frame ảnh từ CVAT."""
         url = f"{self.host}/api/tasks/{self.task_id}"
         req = urllib.request.Request(url, headers=self._headers())
-        try:
-            with urllib.request.urlopen(req) as resp:
-                return json.loads(resp.read().decode("utf-8"))
-        except urllib.error.HTTPError as e:
-            raise RuntimeError(f"Không thể kết nối Task {self.task_id} trên {self.host}: {e}")
+        with self._safe_urlopen(req, f"Task #{self.task_id}") as resp:
+            return json.loads(resp.read().decode("utf-8"))
 
     def download_frame(self, frame_idx: int) -> Image.Image:
         """Tải 1 frame ảnh từ CVAT về Colab theo số thứ tự frame tuyệt đối."""
         url = f"{self.host}/api/tasks/{self.task_id}/data?type=frame&number={frame_idx}&quality=compressed"
         req = urllib.request.Request(url, headers=self._headers())
-        with urllib.request.urlopen(req) as resp:
+        with self._safe_urlopen(req, f"Frame ảnh #{frame_idx}") as resp:
             img_bytes = resp.read()
             return Image.open(io.BytesIO(img_bytes))
 
@@ -91,7 +119,7 @@ class CVATSyncWorker:
         """Tải 1 frame dữ liệu đám mây điểm 3D (.pcd/.bin) từ CVAT về Colab."""
         url = f"{self.host}/api/tasks/{self.task_id}/data?type=frame&number={frame_idx}"
         req = urllib.request.Request(url, headers=self._headers())
-        with urllib.request.urlopen(req) as resp:
+        with self._safe_urlopen(req, f"LiDAR frame #{frame_idx}") as resp:
             raw_bytes = resp.read()
             return read_pcd_bytes(raw_bytes)
 
@@ -118,19 +146,15 @@ class CVATSyncWorker:
         }).encode("utf-8")
 
         req = urllib.request.Request(url, data=payload, headers=headers, method="PUT")
-        try:
-            with urllib.request.urlopen(req) as resp:
-                return json.loads(resp.read().decode("utf-8"))
-        except urllib.error.HTTPError as e:
-            err_msg = e.read().decode("utf-8", errors="ignore")
-            raise RuntimeError(f"CVAT từ chối annotations cho {target_str} (HTTP {e.code}): {err_msg}")
+        with self._safe_urlopen(req, f"Upload annotations {target_str}") as resp:
+            return json.loads(resp.read().decode("utf-8"))
 
     def get_task_labels(self) -> list:
         """Lấy danh sách các nhãn thực sự được định nghĩa trong Task."""
         url = f"{self.host}/api/labels?task_id={self.task_id}"
         req = urllib.request.Request(url, headers=self._headers())
         try:
-            with urllib.request.urlopen(req) as resp:
+            with self._safe_urlopen(req, "Danh sách Labels") as resp:
                 data = json.loads(resp.read().decode("utf-8"))
                 return data.get("results", [])
         except Exception as e:
@@ -188,6 +212,10 @@ class CVATSyncWorker:
             size = task_info_temp.get("size", 0)
             frame_indices = list(range(size))
             mode_desc = f"📋 TOÀN BỘ TASK #{self.task_id} ({size} frames từ 0 đến {size - 1})"
+
+        if self.max_frames and self.max_frames > 0 and len(frame_indices) > self.max_frames:
+            frame_indices = frame_indices[:self.max_frames]
+            mode_desc += f" [Chạy thử {len(frame_indices)} frames đầu]"
 
         print("=" * 65)
         print(f"🚀 BẮT ĐẦU ĐỒNG BỘ TỰ ĐỘNG COLAB GPU <---> CVAT {mode_desc}")
@@ -365,10 +393,13 @@ class CVATSyncWorker:
 
         print(f"\n✅ Đã hoàn thành suy luận AI cho {total_frames} frame! Tổng số shapes sinh ra: {len(all_shapes)}")
 
-        # 3. Đẩy kết quả ngược lên CVAT (làm sạch nhãn rác cũ trước khi ghi)
+        # 3. Đẩy kết quả ngược lên CVAT
         target_name = f"Job #{self.job_id}" if self.job_id else f"Task #{self.task_id}"
-        print(f"📤 Đang dọn dẹp nhãn cũ và cập nhật nhãn mới lên CVAT Server ({target_name})...")
-        self.clear_annotations()
+        if self.clear_old:
+            print(f"📤 Đang dọn dẹp nhãn cũ và cập nhật nhãn mới lên CVAT Server ({target_name})...")
+            self.clear_annotations()
+        else:
+            print(f"📤 Đang cập nhật nhãn mới lên CVAT Server (giữ lại nhãn cũ) ({target_name})...")
         self.upload_annotations(all_shapes, tags=all_tags)
 
         elapsed = time.time() - start_time
@@ -384,20 +415,44 @@ def main():
     parser.add_argument("--token", type=str, required=True, help="API Token của tài khoản CVAT")
     parser.add_argument("--task-id", type=int, default=None, help="ID của Task cần gán nhãn")
     parser.add_argument("--job-id", type=int, default=None, help="ID của Job cụ thể trong Task (nếu chỉ muốn gán nhãn cho 1 Job)")
+    parser.add_argument("--confidence", type=float, default=0.25, help="Ngưỡng tin cậy (Confidence Threshold, mặc định 0.25)")
+    parser.add_argument("--keep-existing", action="store_true", help="Không xóa annotations cũ trước khi đẩy nhãn mới")
+    parser.add_argument("--max-frames", type=int, default=None, help="Giới hạn số frame cần chạy thử")
+    parser.add_argument("--daemon", action="store_true", help="Chạy chế độ daemon liên tục lặp lại theo chu kỳ")
+    parser.add_argument("--poll-interval", type=int, default=30, help="Chu kỳ lặp lại (giây) khi chạy daemon")
     parser.add_argument("--config", type=str, default="configs/labels_config.yaml", help="File cấu hình nhãn")
     args = parser.parse_args()
 
-    if args.task_id is None and args.job_id is None:
+    task_id = args.task_id if (args.task_id is not None and args.task_id > 0) else None
+    job_id = args.job_id if (args.job_id is not None and args.job_id > 0) else None
+
+    if task_id is None and job_id is None:
         parser.error("Cần cung cấp ít nhất --task-id hoặc --job-id")
 
     worker = CVATSyncWorker(
         host=args.host,
         token=args.token,
-        task_id=args.task_id,
-        job_id=args.job_id,
+        task_id=task_id,
+        job_id=job_id,
         registry_path=args.config,
+        conf_thresh=args.confidence,
+        clear_old=not args.keep_existing,
+        max_frames=args.max_frames,
     )
-    worker.run()
+
+    if args.daemon:
+        print(f"🔄 Chế độ DAEMON kích hoạt: kiểm tra và chạy định kỳ mỗi {args.poll_interval}s...")
+        while True:
+            try:
+                worker.run()
+            except KeyboardInterrupt:
+                print("\n🛑 Dừng daemon do người dùng bấm Ctrl+C.")
+                break
+            except Exception as e:
+                print(f"⚠️ [Daemon Lỗi] {e}")
+            time.sleep(args.poll_interval)
+    else:
+        worker.run()
 
 
 if __name__ == "__main__":

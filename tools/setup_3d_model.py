@@ -75,7 +75,8 @@ def install_dependencies():
         print(f"✅ spconv đã được cài đặt: {spconv.__version__}")
     except ImportError:
         print("📦 Cài đặt thư viện spconv tương thích CUDA...")
-        run_cmd("pip install -q spconv-cu120 || pip install -q spconv-cu118 || pip install -q spconv", "Cài đặt spconv")
+        py_bin = sys.executable
+        run_cmd(f'"{py_bin}" -m pip install -q spconv-cu120 || "{py_bin}" -m pip install -q spconv-cu118 || "{py_bin}" -m pip install -q spconv', "Cài đặt spconv")
 
     # 2. Cài đặt OpenPCDet (pcdet)
     try:
@@ -86,7 +87,8 @@ def install_dependencies():
         pcdet_dir = Path("OpenPCDet")
         if not pcdet_dir.exists():
             run_cmd("git clone --depth 1 https://github.com/open-mmlab/OpenPCDet.git", "Clone OpenPCDet repository")
-        run_cmd("cd OpenPCDet && pip install -r requirements.txt && python setup.py develop", "Build và cài đặt OpenPCDet")
+        py_bin = sys.executable
+        run_cmd(f'cd OpenPCDet && "{py_bin}" -m pip install -q -r requirements.txt && "{py_bin}" setup.py develop', "Build và cài đặt OpenPCDet")
 
 
 def verify_installation():

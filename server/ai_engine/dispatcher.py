@@ -19,15 +19,21 @@ class ModelDispatcher:
     Điều phối tác vụ gán nhãn tự động tới đúng model AI backend dựa theo cấu hình của nhãn.
     """
 
-    def __init__(self, registry: Optional[LabelRegistry] = None, device: str = "auto"):
+    def __init__(
+        self,
+        registry: Optional[LabelRegistry] = None,
+        device: str = "auto",
+        conf_thresh: float = 0.25,
+    ):
         self.registry = registry
         self.device = device
+        self.conf_thresh = conf_thresh
 
         # Khởi tạo các sub-engine
         self.sam2_engine = SAM2Engine(device=device)
         self.detector_engine = DetectorEngine(device=device)
         self.pose_engine = PoseEngine(device=device)
-        self.pointpillars_engine = PointPillarsEngine()
+        self.pointpillars_engine = PointPillarsEngine(confidence_threshold=conf_thresh)
 
     def load_engines(self) -> None:
         """Tải các weights mô hình lên GPU."""
