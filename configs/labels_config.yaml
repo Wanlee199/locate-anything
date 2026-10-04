@@ -138,13 +138,82 @@ labels:
     model_backend: "contour"
 
   # ----------------------------------------------------------------------------
-  # 5. 🧊 3D Cuboid (Bounding Box 3D / LiDAR Point Cloud)
+  # 5. 🧊 3D Cuboid (Bounding Box 3D / LiDAR Point Cloud - Chuẩn nuScenes)
   # ----------------------------------------------------------------------------
+  - name: "car"
+    type: "3d"
+    color: "#007aff"
+    hotkey: "1"
+    description: "Xe ô tô con / Sedan / SUV trong không gian 3D LiDAR"
+    model_backend: "cuboid_3d"
+
+  - name: "truck"
+    type: "3d"
+    color: "#af52de"
+    hotkey: "2"
+    description: "Xe tải vận chuyển hàng hóa"
+    model_backend: "cuboid_3d"
+
+  - name: "bus"
+    type: "3d"
+    color: "#ff9500"
+    hotkey: "3"
+    description: "Xe buýt / Xe khách chở người"
+    model_backend: "cuboid_3d"
+
+  - name: "trailer"
+    type: "3d"
+    color: "#5856d6"
+    hotkey: "4"
+    description: "Rơ-moóc / Thùng kéo phía sau xe tải"
+    model_backend: "cuboid_3d"
+
+  - name: "construction_vehicle"
+    type: "3d"
+    color: "#ffcc00"
+    hotkey: "5"
+    description: "Xe công trình: xe ủi, máy xúc, xe trộn bê tông"
+    model_backend: "cuboid_3d"
+
+  - name: "pedestrian"
+    type: "3d"
+    color: "#34c759"
+    hotkey: "6"
+    description: "Người đi bộ trong không gian 3D LiDAR"
+    model_backend: "cuboid_3d"
+
+  - name: "motorcycle"
+    type: "3d"
+    color: "#ff2d55"
+    hotkey: "7"
+    description: "Xe máy / Xe mô tô 2 bánh"
+    model_backend: "cuboid_3d"
+
+  - name: "bicycle"
+    type: "3d"
+    color: "#5ac8fa"
+    hotkey: "8"
+    description: "Xe đạp trong không gian 3D LiDAR"
+    model_backend: "cuboid_3d"
+
+  - name: "traffic_cone"
+    type: "3d"
+    color: "#ff3b30"
+    hotkey: "9"
+    description: "Cọc tiêu phân luồng giao thông hình nón"
+    model_backend: "cuboid_3d"
+
+  - name: "barrier"
+    type: "3d"
+    color: "#8e8e93"
+    hotkey: "0"
+    description: "Rào chắn / Dải phân cách giao thông"
+    model_backend: "cuboid_3d"
+
   - name: "truck_3d"
     type: "3d"
     color: "#af52de"
-    hotkey: "9"
-    description: "Xe tải kích thước lớn trong không gian 3 chiều"
+    description: "Xe tải kích thước lớn trong không gian 3 chiều (Legacy)"
     model_backend: "cuboid_3d"
     attributes:
       - name: "motion_state"
@@ -155,8 +224,7 @@ labels:
   - name: "warehouse_pallet_3d"
     type: "3d"
     color: "#ff2d55"
-    hotkey: "0"
-    description: "Pallet hàng hóa trong kho thông minh"
+    description: "Pallet hàng hóa trong kho thông minh (Legacy)"
     model_backend: "cuboid_3d"
 
   # ----------------------------------------------------------------------------
@@ -208,3 +276,27 @@ labels:
         - [13, 15]
         - [12, 14]
         - [14, 16]
+
+  # ----------------------------------------------------------------------------
+  # 7. ⭕ Ellipse (Hình elip / hình tròn)
+  # ----------------------------------------------------------------------------
+  - name: "traffic_sign_circle"
+    type: "ellipse"
+    color: "#ffcc00"
+    hotkey: "e"
+    description: "Biển báo giao thông hình tròn"
+    model_backend: "contour"
+
+  # ----------------------------------------------------------------------------
+  # 8. 🏷️ Tag (Gán nhãn cấp độ toàn ảnh)
+  # ----------------------------------------------------------------------------
+  - name: "scene_weather"
+    type: "tag"
+    color: "#5ac8fa"
+    description: "Bối cảnh thời tiết hoặc điều kiện ánh sáng của toàn ảnh"
+    model_backend: "auto"
+    attributes:
+      - name: "weather"
+        input_type: "select"
+        values: ["sunny", "rainy", "night", "foggy"]
+        default_value: "sunny"

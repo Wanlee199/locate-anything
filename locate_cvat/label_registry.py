@@ -30,6 +30,8 @@ class LabelType(str, Enum):
     LINE = "line"
     CUBOID_3D = "3d"
     SKELETON = "skeleton"
+    ELLIPSE = "ellipse"
+    TAG = "tag"
 
     @classmethod
     def from_str(cls, val: str) -> "LabelType":
@@ -50,11 +52,15 @@ class LabelType(str, Enum):
             "skeleton": cls.SKELETON,
             "pose": cls.SKELETON,
             "keypoints": cls.SKELETON,
+            "ellipse": cls.ELLIPSE,
+            "circle": cls.ELLIPSE,
+            "tag": cls.TAG,
+            "classification": cls.TAG,
         }
         if val_clean in mapping:
             return mapping[val_clean]
         raise ValueError(
-            f"Không hỗ trợ loại nhãn '{val}'. Các loại hỗ trợ: box, polygon, mask, line, 3d, skeleton"
+            f"Không hỗ trợ loại nhãn '{val}'. Các loại hỗ trợ: box, polygon, mask, line, 3d, skeleton, ellipse, tag"
         )
 
     def to_cvat_type(self) -> str:
@@ -66,6 +72,8 @@ class LabelType(str, Enum):
             LabelType.LINE: "polyline",
             LabelType.CUBOID_3D: "cuboid",
             LabelType.SKELETON: "skeleton",
+            LabelType.ELLIPSE: "ellipse",
+            LabelType.TAG: "tag",
         }
         return mapping[self]
 
@@ -191,11 +199,12 @@ class LabelRegistry:
         self._validate_all()
 
     def _validate_all(self) -> None:
-        seen_names = set()
+        seen_keys = set()
         for label in self.labels:
-            if label.name in seen_names:
-                raise ValueError(f"Trùng lặp tên nhãn trong danh mục: '{label.name}'")
-            seen_names.add(label.name)
+            key = (label.name.lower(), label.type)
+            if key in seen_keys:
+                raise ValueError(f"Trùng lặp nhãn cùng tên và loại trong danh mục: '{label.name}' ({label.type.value})")
+            seen_keys.add(key)
             label.validate()
 
     @classmethod
@@ -465,9 +474,20 @@ class LabelRegistry:
         """
         return [lbl.to_cvat_spec() for lbl in self.labels]
 
-    def get(self, name: str) -> Optional[LabelItem]:
+    def get(self, name: str, label_type: Optional[Union[str, LabelType]] = None) -> Optional[LabelItem]:
+        target_type = None
+        if label_type is not None:
+            target_type = LabelType.from_str(label_type) if isinstance(label_type, str) else label_type
+
+        # 1. Ưu tiên khớp cả tên và loại nhãn nếu có truyền label_type
+        if target_type is not None:
+            for lbl in self.labels:
+                if lbl.name.lower() == name.lower() and lbl.type == target_type:
+                    return lbl
+
+        # 2. Khớp theo tên
         for lbl in self.labels:
-            if lbl.name == name:
+            if lbl.name.lower() == name.lower():
                 return lbl
         return None
 

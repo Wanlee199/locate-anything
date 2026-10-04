@@ -1,0 +1,254 @@
+#!/usr/bin/env python3
+"""
+Script tạo file colab/launch_colab.ipynb chuẩn định dạng Jupyter Notebook v4.
+"""
+
+import json
+import sys
+from pathlib import Path
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+notebook = {
+    "cells": [
+        {
+            "cell_type": "markdown",
+            "metadata": {
+                "id": "intro_markdown"
+            },
+            "source": [
+                "# 🚀 CVAT Universal Multi-Modal AI Auto-Annotation (Google Colab 1-Click Runner)\n",
+                "\n",
+                "[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Wanlee199/locate-anything/blob/locateV2/colab/launch_colab.ipynb)\n",
+                "\n",
+                "Hệ thống AI tự động hóa gán nhãn đa hình thái trên **Google Colab (GPU T4 miễn phí)** kết nối trực tiếp với **CVAT Server**:\n",
+                "- 🧊 **3D Point Cloud LiDAR (Cuboid)**: Tự động phát hiện và vẽ hộp lập phương 3D cho file `.pcd` / `.bin` bằng mô hình **nuScenes PointPillars Deep Learning** (10 classes: `car`, `truck`, `bus`, `trailer`, `construction_vehicle`, `pedestrian`, `motorcycle`, `bicycle`, `barrier`, `traffic_cone`).\n",
+                "- 🎭 **Native Bitmap Mask (Brush RLE)**: Tự động phân đoạn điểm ảnh chính xác chuẩn CVAT RLE (SAM 2.1).\n",
+                "- 📐 **Vector Polygon**: Tự động sinh đa giác viền khít có điểm neo (YOLO11 Segmenter).\n",
+                "- 📦 **2D Bounding Box**: Nhận diện xe cộ, người đi bộ, chướng ngại vật (YOLO11 Detector).\n",
+                "- 📏 **Polyline / Line**: Rút xương dải đường thành đường tim đường.\n",
+                "- 🦴 **Skeleton / Pose**: Nhận diện khung xương người (17 keypoints).\n",
+                "- ⭕ **Ellipse**: Tự động khớp phương trình elip toán học.\n",
+                "- 🏷️ **Tag**: Phân loại toàn ảnh tự động.\n",
+                "\n",
+                "---\n",
+                "### ⚡ Hướng dẫn sử dụng nhanh (Chỉ 2 bước):\n",
+                "1. **Bật GPU**: Menu **Runtime** $\\rightarrow$ **Change runtime type** $\\rightarrow$ Chọn **T4 GPU** $\\rightarrow$ Bấm **Save**.\n",
+                "2. **Chạy Bước 1**: Bấm nút Play ở **BƯỚC 1** để tự động clone code và thiết lập môi trường AI.\n",
+                "3. **Chạy Bước 2**: Nhập URL CVAT + Token của bạn vào Form và bấm Play ở **BƯỚC 2** để AI tự động gán nhãn!"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {
+                "id": "setup_cell",
+                "cellView": "form"
+            },
+            "outputs": [],
+            "source": [
+                "#@title 📦 BƯỚC 1: Tự Động Thiết Lập Môi Trường GPU & Mã Nguồn { display-mode: \"form\" }\n",
+                "#@markdown Bấm nút Play cell này để tự động cập nhật code mới nhất từ GitHub, cấu hình GPU và nạp toàn bộ trọng số AI (2D & 3D nuScenes).\n",
+                "\n",
+                "import os\n",
+                "import sys\n",
+                "import subprocess\n",
+                "\n",
+                "print(\"=\" * 70)\n",
+                "print(\"🚀 [BƯỚC 1/2] THIẾT LẬP HỆ THỐNG CVAT AI AUTO-ANNOTATION TRÊN COLAB\")\n",
+                "print(\"=\" * 70)\n",
+                "\n",
+                "# 1. Kiểm tra GPU\n",
+                "try:\n",
+                "    import torch\n",
+                "    if not torch.cuda.is_available():\n",
+                "        print(\"⚠️ CẢNH BÁO: Chưa kích hoạt GPU! Vui lòng vào Runtime -> Change runtime type -> Chọn T4 GPU -> Bấm Save rồi chạy lại cell này.\")\n",
+                "    else:\n",
+                "        gpu_name = torch.cuda.get_device_name(0)\n",
+                "        gpu_mem = torch.cuda.get_device_properties(0).total_memory / (1024**3)\n",
+                "        print(f\"✅ Phát hiện GPU: {gpu_name} ({gpu_mem:.1f} GB VRAM)\")\n",
+                "except Exception as e:\n",
+                "    print(f\"⚠️ Không kiểm tra được GPU: {e}\")\n",
+                "\n",
+                "# 2. Tự động Clone hoặc Pull nhánh locateV2 mới nhất\n",
+                "REPO_DIR = \"/content/locate-anything\"\n",
+                "BRANCH = \"locateV2\"\n",
+                "REPO_URL = \"https://github.com/Wanlee199/locate-anything.git\"\n",
+                "\n",
+                "if os.path.exists(REPO_DIR):\n",
+                "    print(f\"🔄 Đang cập nhật mã nguồn mới nhất từ nhánh {BRANCH}...\")\n",
+                "    subprocess.run(f\"cd {REPO_DIR} && git fetch origin {BRANCH} && git checkout {BRANCH} && git pull origin {BRANCH}\", shell=True, check=True)\n",
+                "else:\n",
+                "    print(f\"📥 Đang tải mã nguồn từ {REPO_URL} (nhánh {BRANCH})...\")\n",
+                "    subprocess.run(f\"git clone -b {BRANCH} {REPO_URL} {REPO_DIR}\", shell=True, check=True)\n",
+                "\n",
+                "# 3. Chuyển thư mục làm việc và đưa vào sys.path\n",
+                "os.chdir(REPO_DIR)\n",
+                "if REPO_DIR not in sys.path:\n",
+                "    sys.path.insert(0, REPO_DIR)\n",
+                "\n",
+                "# 4. Cài đặt các thư viện cơ bản từ requirements.txt\n",
+                "print(\"📦 Đang cài đặt các thư viện phụ thuộc từ requirements.txt...\")\n",
+                "subprocess.run(f\"{sys.executable} -m pip install -q -r requirements.txt gdown\", shell=True, check=True)\n",
+                "\n",
+                "# 5. Cài đặt và tải mô hình 3D nuScenes PointPillars\n",
+                "print(\"🧊 Đang kiểm tra và thiết lập mô hình 3D nuScenes PointPillars...\")\n",
+                "subprocess.run(f\"{sys.executable} tools/setup_3d_model.py --install\", shell=True, check=True)\n",
+                "\n",
+                "print(\"\\n\" + \"=\" * 70)\n",
+                "print(\"🎉 HOÀN TẤT THIẾT LẬP MÔI TRƯỜNG! BÂY GIỜ HÃY CHẠY BƯỚC 2 BÊN DƯỚI 👇\")\n",
+                "print(\"=\" * 70)\n"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {
+                "id": "run_sync_cell",
+                "cellView": "form"
+            },
+            "outputs": [],
+            "source": [
+                "#@title 🚀 BƯỚC 2: Cấu Hình & Chạy AI Tự Động Gán Nhãn Lên CVAT { display-mode: \"form\" }\n",
+                "#@markdown Điền thông tin kết nối CVAT Server và bấm nút Play để AI tự động phân tích và gán nhãn:\n",
+                "\n",
+                "# URL máy chủ CVAT (Cloudflare Tunnel nếu CVAT trên máy cá nhân, hoặc IP VPS, hoặc https://app.cvat.ai)\n",
+                "CVAT_HOST = \"https://filme-casting-charlotte-machine.trycloudflare.com\" #@param {type:\"string\"}\n",
+                "\n",
+                "# API Token lấy từ CVAT Web -> Bấm vào Avatar góc trên bên phải -> Profile -> API Tokens -> Create\n",
+                "CVAT_TOKEN = \"WMkKguaq.KnaJtSWw0hH6kndTWpElolULZ4B0h6D6\" #@param {type:\"string\"}\n",
+                "\n",
+                "# ID của Job bạn được phân công (Ví dụ: 2). Nếu muốn chạy cả Task, hãy đặt Job ID = 0 và nhập Task ID bên dưới.\n",
+                "CVAT_JOB_ID = 2 #@param {type:\"integer\"}\n",
+                "\n",
+                "# ID của Task (Ví dụ: 2). Nếu đã điền CVAT_JOB_ID thì hệ thống sẽ tự động nhận diện Task ID.\n",
+                "CVAT_TASK_ID = 0 #@param {type:\"integer\"}\n",
+                "\n",
+                "# Độ nhạy phát hiện vật thể (0.1 = nhạy nhất phát hiện nhiều, 0.5 = chặt chẽ độ chính xác cao)\n",
+                "CONFIDENCE_THRESHOLD = 0.25 #@param {type:\"slider\", min:0.05, max:0.95, step:0.05}\n",
+                "\n",
+                "# Xóa các nhãn cũ/rác trên Job trước khi nạp nhãn AI mới (khuyên dùng True để tránh trùng lặp)\n",
+                "CLEAR_OLD_ANNOTATIONS = True #@param {type:\"boolean\"}\n",
+                "\n",
+                "# Giới hạn số frame chạy thử (Đặt 0 để chạy TOÀN BỘ tất cả frames trong Job/Task)\n",
+                "MAX_FRAMES_TEST = 0 #@param {type:\"integer\"}\n",
+                "\n",
+                "import os\n",
+                "import sys\n",
+                "import subprocess\n",
+                "\n",
+                "# Đảm bảo đang đứng đúng thư mục repo\n",
+                "if not os.path.exists(\"colab/cvat_auto_sync.py\"):\n",
+                "    if os.path.exists(\"/content/locate-anything\"):\n",
+                "        os.chdir(\"/content/locate-anything\")\n",
+                "    else:\n",
+                "        raise RuntimeError(\"Vui lòng chạy BƯỚC 1 trước để tải mã nguồn!\")\n",
+                "\n",
+                "# Xây dựng lệnh thực thi\n",
+                "cmd = [\n",
+                "    sys.executable, \"colab/cvat_auto_sync.py\",\n",
+                "    \"--host\", CVAT_HOST.strip(),\n",
+                "    \"--token\", CVAT_TOKEN.strip(),\n",
+                "    \"--confidence\", str(CONFIDENCE_THRESHOLD),\n",
+                "]\n",
+                "\n",
+                "if CVAT_JOB_ID and CVAT_JOB_ID > 0:\n",
+                "    cmd.extend([\"--job-id\", str(CVAT_JOB_ID)])\n",
+                "if CVAT_TASK_ID and CVAT_TASK_ID > 0:\n",
+                "    cmd.extend([\"--task-id\", str(CVAT_TASK_ID)])\n",
+                "if not CLEAR_OLD_ANNOTATIONS:\n",
+                "    cmd.append(\"--keep-existing\")\n",
+                "if MAX_FRAMES_TEST and MAX_FRAMES_TEST > 0:\n",
+                "    cmd.extend([\"--max-frames\", str(MAX_FRAMES_TEST)])\n",
+                "\n",
+                "res = subprocess.run(cmd)\n",
+                "if res.returncode != 0:\n",
+                "    print(f\"\\n❌ Tiến trình gán nhãn gặp lỗi (Exit code {res.returncode})!\")\n"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {
+                "id": "diagnostics_cell",
+                "cellView": "form"
+            },
+            "outputs": [],
+            "source": [
+                "#@title 🩺 BƯỚC 3 (Tùy chọn): Kiểm Tra Kết Nối & Thông Tin Task / Job { display-mode: \"form\" }\n",
+                "#@markdown Cell này kiểm tra nhanh kết nối tới CVAT, danh sách nhãn và định dạng dữ liệu (2D hay 3D LiDAR):\n",
+                "\n",
+                "import json\n",
+                "import urllib.request\n",
+                "import urllib.error\n",
+                "\n",
+                "headers = {\n",
+                "    \"Authorization\": f\"Bearer {CVAT_TOKEN.strip()}\",\n",
+                "    \"Accept\": \"application/vnd.cvat+json, application/json;q=0.9\",\n",
+                "}\n",
+                "\n",
+                "base_url = CVAT_HOST.strip().rstrip(\"/\")\n",
+                "print(f\"🔍 Đang kiểm tra kết nối tới: {base_url} ...\")\n",
+                "\n",
+                "try:\n",
+                "    # 1. Kiểm tra Job nếu có\n",
+                "    target_task_id = CVAT_TASK_ID\n",
+                "    if CVAT_JOB_ID and CVAT_JOB_ID > 0:\n",
+                "        job_req = urllib.request.Request(f\"{base_url}/api/jobs/{CVAT_JOB_ID}\", headers=headers)\n",
+                "        with urllib.request.urlopen(job_req) as resp:\n",
+                "            job_data = json.loads(resp.read().decode(\"utf-8\"))\n",
+                "            target_task_id = job_data.get(\"task_id\", target_task_id)\n",
+                "            print(f\"✅ Kết nối thành công Job #{CVAT_JOB_ID}!\")\n",
+                "            print(f\"   • Trạng thái Job: {job_data.get('state')} / {job_data.get('stage')}\")\n",
+                "            print(f\"   • Khung hình: Frame {job_data.get('start_frame')} -> {job_data.get('stop_frame')} (Tổng: {job_data.get('stop_frame') - job_data.get('start_frame') + 1} frames)\")\n",
+                "            print(f\"   • Thuộc Task ID: #{target_task_id}\")\n",
+                "\n",
+                "    # 2. Kiểm tra Task\n",
+                "    if target_task_id and target_task_id > 0:\n",
+                "        task_req = urllib.request.Request(f\"{base_url}/api/tasks/{target_task_id}\", headers=headers)\n",
+                "        with urllib.request.urlopen(task_req) as resp:\n",
+                "            task_data = json.loads(resp.read().decode(\"utf-8\"))\n",
+                "            dim = task_data.get(\"dimension\", \"2d\")\n",
+                "            print(f\"\\n📋 Thông tin Task #{target_task_id}: {task_data.get('name')}\")\n",
+                "            print(f\"   • Kiểu dữ liệu: {'🧊 3D Point Cloud LiDAR (.pcd)' if dim == '3d' else '🖼️ 2D Images / Video'}\")\n",
+                "            print(f\"   • Tổng số frames của Task: {task_data.get('size')} frames\")\n",
+                "\n",
+                "        # 3. Kiểm tra nhãn\n",
+                "        lbl_req = urllib.request.Request(f\"{base_url}/api/labels?task_id={target_task_id}\", headers=headers)\n",
+                "        with urllib.request.urlopen(lbl_req) as resp:\n",
+                "            lbl_data = json.loads(resp.read().decode(\"utf-8\"))\n",
+                "            labels = lbl_data.get(\"results\", [])\n",
+                "            print(f\"\\n🏷️ Danh sách nhãn trong Task ({len(labels)} nhãn):\")\n",
+                "            for l in labels:\n",
+                "                print(f\"   • [ID: {l.get('id')}] {l.get('name')} (Type: {l.get('type')})\")\n",
+                "\n",
+                "    print(\"\\n🟢 Kết nối và cấu hình hoàn toàn chuẩn xác!\")\n",
+                "except Exception as e:\n",
+                "    print(f\"\\n❌ Lỗi kiểm tra: {e}\")\n"
+            ]
+        }
+    ],
+    "metadata": {
+        "accelerator": "GPU",
+        "colab": {
+            "gpuType": "T4",
+            "provenance": []
+        },
+        "language_info": {
+            "name": "python"
+        },
+        "kernelspec": {
+            "name": "python3",
+            "display_name": "Python 3"
+        }
+    },
+    "nbformat": 4,
+    "nbformat_minor": 0
+}
+
+out_path = Path("colab/launch_colab.ipynb")
+with open(out_path, "w", encoding="utf-8") as f:
+    json.dump(notebook, f, indent=2, ensure_ascii=False)
+
+print(f"✅ Đã tạo thành công {out_path} ({out_path.stat().st_size} bytes)")
